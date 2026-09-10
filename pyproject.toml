@@ -36,6 +36,9 @@ ignore = ["ANN401"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
 "src/rageval/ingest/__main__.py" = ["T201"]
+"src/rageval/retrieval/__main__.py" = ["T201"]
+"src/rageval/eval/__main__.py" = ["T201"]
+"scripts/**" = ["T201"]
 
 [tool.mypy]
 python_version = "3.13"

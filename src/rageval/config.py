@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     cache_dir: Path = Path(".cache")
     documents_dir: Path = Path("documents")
     corpus_dir: Path = Path("data/corpus")
+    golden_set_path: Path = Path("evals/golden-set.jsonl")
+    report_dir: Path = Path("evals/reports")
     gemini_api_key: SecretStr | None = None
     groq_api_key: SecretStr | None = None
 
@@ -27,6 +29,12 @@ class Settings(BaseSettings):
     provider_timeout_seconds: float = 30.0
     budget_max_calls: int = 2000
     budget_max_input_chars: int = 4_000_000
+
+    retrieval_top_k: int = 5
+    embedding_batch_size: int = 64
+    embedding_max_attempts: int = 8
+    embedding_backoff_seconds: float = 20.0
+    embedding_backoff_ceiling_seconds: float = 120.0
 
 
 @lru_cache(maxsize=1)

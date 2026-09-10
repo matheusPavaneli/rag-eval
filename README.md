@@ -1,124 +1,172 @@
 # rageval
 
-A retrieval-augmented generation pipeline that measures its own quality and
-proves every answer against a verifiable span in the source document.
+A retrieval-augmented generation pipeline that measures its own quality, on a
+corpus you can read, with a number you can reproduce.
 
-Not a chatbot demo. The point of the project is the part tutorials skip: a
-golden set, a number, and a CI gate that fails when retrieval quality drops.
+The interesting part of a RAG system is not that it answers. It is whether the
+passage it answered from was the right one — and most RAG projects never find
+out. This one starts there: a golden set of thirty questions, ground truth
+recorded as character spans in the source documents, and a baseline published
+before anything is optimised.
 
-## Status
+## The current number
 
-Built in slices, each one measured before the next begins.
+Not published yet. The baseline run is blocked on indexing: 1768 of the 1829
+chunks carry a vector, and the last 61 — all of them in `pep-0695.md` — are
+waiting on the free tier's embedding quota of 1000 requests per day to reset.
 
-| Slice | Scope | State |
-| --- | --- | --- |
-| F0 | Reproducible skeleton: uv, ruff, mypy strict, pytest, Postgres + pgvector, CI | done |
-| F1 | Ingest: loading, chunking with metadata, content hashing, versioned corpus | done |
-| F2 | Provider layer: one Protocol, Gemini and Groq adapters, disk cache, budget, failover | done |
-| F3 | Vector retrieval baseline, 30-question golden set, first measured number | pending |
-| F4 | Hybrid retrieval and local reranking, measured against the F3 baseline | pending |
-| F5 | Answers with citations resolved to a character span in the source document | pending |
-| F6 | Eval harness wired into CI, failing the build on quality regression | pending |
-| F7 | Next.js frontend: chat where a citation click highlights the source span | pending |
+The eval harness refuses to report over a partial index, and that refusal is
+deliberate: a figure measured on 96% of the corpus, published under a corpus
+version whose manifest claims all of it, is exactly the kind of number this
+project exists to argue against. The row lands here when the index is complete.
 
-## Retrieval quality
+It will be measured over fifty Python Enhancement Proposals (~1.3 MB, 1829
+chunks) with `gemini-embedding-001` at 768 dimensions and exact cosine search in
+pgvector.
 
-No numbers yet. This table is filled by F3 and must never hold a figure that was
-not produced by a recorded run.
+**Context recall @5** is the share of supporting passages that appear somewhere in
+the top five. **MRR @5** is how far down the list the first correct passage sat.
+Both are reported because either alone misleads: recall hides a retriever that
+always ranks the answer fifth, MRR hides one that ranks its few hits well and
+misses most questions.
 
-| Date | Configuration | Context recall @5 | MRR @5 |
-| --- | --- | --- | --- |
-| — | — | — | — |
-
-## Requirements
-
-Python 3.13, [uv](https://docs.astral.sh/uv/), and Docker.
-
-## Setup
+Reproduce it:
 
 ```bash
-cp .env.example .env
+uv run python -m rageval.ingest documents/
+uv run python -m rageval.retrieval
+uv run python -m rageval.eval
+```
+
+The second command is the slow one — the free embedding tier meters tokens per
+minute, so the first index takes minutes and backs off when it is throttled.
+Every vector is then cached on disk by content hash, so the run after that makes
+no network call at all.
+
+## What is measured, and what that is worth
+
+Ground truth is a **character span in a source document**, not the id of a chunk.
+A chunk id is a function of the chunk size, so a golden set keyed on one would
+have to be rewritten the moment chunking changed — which is exactly the
+experiment the set exists to judge. A retrieved chunk counts as relevant when it
+overlaps a supporting span in the same document.
+
+Every span is resolved against the corpus when the golden set loads. An unknown
+file, a span past the end of its document, or a duplicated question id is an
+error naming the question. A harness that silently skips questions it cannot
+resolve reports a better number than it earned.
+
+The set is drafted by `scripts/build_golden_set.py`, which holds each question
+next to the needle that locates its answer and widens the match to the enclosing
+paragraph. It is committed because the spans are offsets into documents that
+have changed: re-running it is how the set follows a new corpus version.
+
+The honest caveat, stated here rather than buried: the thirty questions were
+drafted against this corpus and then verified span by span against the source.
+About half the initial anchors were moved because they had landed on a heading
+or a code sample instead of on a sentence that answered the question. A set
+written with knowledge of the corpus flatters recall. Treat the figure as an
+upper bound on this corpus, not as an estimate of production quality.
+
+## Getting it running
+
+Python 3.13, [uv](https://docs.astral.sh/uv/), Docker, and a free Gemini key.
+
+```bash
+cp .env.example .env      # then add RAGEVAL_GEMINI_API_KEY
 uv sync --all-groups
 docker compose up -d
 ```
 
 On Windows, Docker runs inside WSL: `wsl.exe -e docker compose up -d`.
 
-Both keys are free tier and neither asks for a credit card. Gemini is required
-from F2 on, because it is the only one of the two that embeds:
+Two keys are read, both free tier, neither asking for a card. Gemini is required
+because it is the only one of the two that embeds; Groq is the failover for chat.
 
 - `RAGEVAL_GEMINI_API_KEY` — https://aistudio.google.com/apikey
 - `RAGEVAL_GROQ_API_KEY` — https://console.groq.com/keys
 
-## Ingest
+## How it fits together
+
+**Ingest** turns a directory of markdown into a versioned corpus. Every chunk
+carries the character span it occupies in its source document, so a citation can
+later resolve to exact characters rather than to a copy of the text that may
+appear twice. The corpus version is a hash of the document contents and the
+chunk parameters — stable across re-runs, different the moment either changes.
+Every number this project publishes names the corpus version that produced it.
+
+**Providers** put Gemini and Groq behind one `Protocol`, so no caller knows which
+answered. Gemini goes first and Groq takes over on a *transient* failure — a rate
+limit, a timeout, a 5xx. A rejected key is permanent and stops the run: failing
+over on a bad key would quietly change the model behind a published number.
+Responses are cached on disk keyed by the hash of provider, model and input, and
+a per-run budget refuses the call that would exceed it before it is made.
+
+**Retrieval** stores chunks and their vectors in pgvector and searches by exact
+cosine distance over the whole corpus — no approximate index. At this scale the
+speed is not needed, and an ANN index would fold its own recall loss into the
+baseline without saying so. Adding one later becomes its own slice, with the
+recall it costs measured against this number instead of assumed to be zero.
+
+**Eval** runs the golden set through the retriever and writes a frozen report to
+`evals/reports/` holding both metrics and the entire configuration that produced
+them: corpus version, model, dimension, chunk size, overlap, k, and how many
+calls actually reached the network.
+
+## The corpus
+
+Fifty PEPs, converted from reStructuredText by `scripts/fetch_peps.py` and
+committed, with `docs/corpus-sources.md` recording each source URL and the
+sha256 of the bytes that were converted. They are public domain or CC0, dense
+enough to be a real retrieval problem, and familiar enough that a bad result is
+legible rather than abstract.
+
+The source documents are in the repository because `data/` is not: a published
+number whose input is fetched at eval time drifts silently when upstream edits a
+file. The conversion rewrites no prose — headings, code blocks and inline markup
+only.
+
+## Working on it
 
 ```bash
-uv run python -m rageval.ingest documents/
-```
-
-Loads every `.md` and `.txt` under the directory, chunks each one, and writes
-`data/corpus/<corpus_version>/` — `documents.jsonl`, `chunks.jsonl` and a
-`manifest.json`. Nothing here calls a model or the network.
-
-Every chunk carries the character span it occupies in its source document, so a
-citation resolves to exact characters rather than to a copy of the text.
-
-`corpus_version` is the hash of the document contents and the chunk parameters,
-so it is stable across re-runs and different the moment either changes. Every
-number this project publishes names the corpus version that produced it: without
-that, two measurements cannot be compared.
-
-## Providers
-
-Every model call goes through one `Protocol`, so no caller knows which provider
-answered:
-
-```python
-from httpx import Client
-
-from rageval.config import get_settings
-from rageval.providers import build_chat_provider, build_embedding_provider
-
-settings = get_settings()
-with Client() as client:
-    vectors = build_embedding_provider(settings, client).embed(["a chunk"])
-    answer = build_chat_provider(settings, client).complete("a question")
-```
-
-Gemini answers first and Groq takes over when Gemini fails *transiently* — a
-rate limit, a timeout, a 5xx. A rejected key is a permanent failure and stops
-the run: failing over on a bad key would quietly change the model behind a
-published number.
-
-Every answer is cached on disk under `.cache/providers/`, keyed by the hash of
-the provider, the model and the exact input. A repeated run answers from disk
-and makes no request, which is what keeps a demo working when the free-tier
-quota is gone. Delete the directory to force a refetch.
-
-`RAGEVAL_BUDGET_MAX_CALLS` and `RAGEVAL_BUDGET_MAX_INPUT_CHARS` cap what one run
-may send; the call that would exceed either is refused before it is made, so a
-loop with a bug cannot spend a day's quota. Cached answers cost nothing against
-the budget.
-
-Groq exposes no embedding API, so embeddings are Gemini only and say so rather
-than pretending a fallback exists.
-
-## Checks
-
-```bash
-uv run ruff check .
-uv run ruff format --check .
+uv run ruff check . && uv run ruff format --check .
 uv run mypy
-uv run pytest
-uv run pytest -m integration
+uv run pytest                 # no network, no database, no key
+uv run pytest -m integration  # needs Postgres, and a key for the live provider tests
 ```
 
-Pure tests run everywhere. Tests that need Postgres or the network carry the
-`integration` marker and are excluded by default, so a suite that fails is a
-real failure rather than a missing service.
+Every unit test runs offline. Indexing, retrieval and the eval harness are all
+driven through protocols — `ChunkStore`, `EmbeddingProvider`, `QuestionRetriever` —
+so the suite substitutes fakes rather than reaching for a service, and a failing
+`pytest` is a real failure instead of a missing container.
+
+Useful while poking at it:
+
+```bash
+uv run python -m rageval.retrieval --query "what is the maximum line length?" -k 5
+```
+
+## Where this is going
+
+Built in slices, each one measured before the next begins. The baseline above is
+the point of the first four: **F0** a reproducible skeleton, **F1** ingest with
+spans, **F2** the provider layer with caching and failover, **F3** the pgvector
+baseline and this number.
+
+What comes next only makes sense now that there is something to compare against.
+**F4** adds BM25, reciprocal rank fusion and a local reranker, and has to beat
+the number above on the same golden set and corpus version. **F5** resolves
+citations to a character span in the source. **F6** turns the harness into a CI
+gate that fails the build on a quality regression. **F7** puts a frontend on it
+where clicking a citation highlights the span it came from.
+
+The ordering is deliberate, and it is the argument the project is making:
+measure the baseline before optimising anything, or you cannot prove the
+optimisation helped.
 
 ## Design decisions
 
-Every slice records what was chosen, what was rejected, and why, under
-[`docs/adr/`](docs/adr/). Code carries no explanatory comments: the reasoning
-lives in the ADRs, where it can be dated and revised.
+Every slice records what was chosen, what was rejected, and why, in
+[`docs/adr/`](docs/adr/) — including the two conversion bugs found by reading the
+corpus output instead of trusting it. The code carries no explanatory comments:
+the reasoning lives in the ADRs, where it can be dated and revised.
