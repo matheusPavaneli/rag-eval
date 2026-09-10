@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = None
     groq_api_key: SecretStr | None = None
 
+    gemini_chat_model: str = "gemini-3.5-flash"
+    gemini_embedding_model: str = "gemini-embedding-001"
+    groq_chat_model: str = "openai/gpt-oss-120b"
+    embedding_dimension: int = 768
+    provider_timeout_seconds: float = 30.0
+    budget_max_calls: int = 2000
+    budget_max_input_chars: int = 4_000_000
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

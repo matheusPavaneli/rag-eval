@@ -8,6 +8,7 @@ dependencies = [
     "pydantic>=2.12",
     "pydantic-settings>=2.7",
     "psycopg[binary]>=3.2",
+    "httpx>=0.28",
 ]
 
 [dependency-groups]
