@@ -47,8 +47,8 @@ jobs:
       - run: uv sync --all-groups --frozen
       - run: psql "$RAGEVAL_DATABASE_URL" -c 'CREATE EXTENSION IF NOT EXISTS vector'
         env:
-          RAGEVAL_DATABASE_URL: postgresql://rageval:rageval@localhost:5433/rageval
+          RAGEVAL_DATABASE_URL: postgresql://rageval:rageval@127.0.0.1:5433/rageval
           PGPASSWORD: rageval
       - run: uv run pytest -m integration
         env:
-          RAGEVAL_DATABASE_URL: postgresql://rageval:rageval@localhost:5433/rageval
+          RAGEVAL_DATABASE_URL: postgresql://rageval:rageval@127.0.0.1:5433/rageval
