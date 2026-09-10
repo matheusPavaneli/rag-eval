@@ -13,7 +13,7 @@ Built in slices, each one measured before the next begins.
 | Slice | Scope | State |
 | --- | --- | --- |
 | F0 | Reproducible skeleton: uv, ruff, mypy strict, pytest, Postgres + pgvector, CI | done |
-| F1 | Ingest: loading, chunking with metadata, content hashing, versioned corpus | pending |
+| F1 | Ingest: loading, chunking with metadata, content hashing, versioned corpus | done |
 | F2 | Provider layer: one Protocol, Gemini and Groq adapters, disk cache, budget, failover | pending |
 | F3 | Vector retrieval baseline, 30-question golden set, first measured number | pending |
 | F4 | Hybrid retrieval and local reranking, measured against the F3 baseline | pending |
@@ -49,6 +49,24 @@ credit card:
 
 - `RAGEVAL_GEMINI_API_KEY` — https://aistudio.google.com/apikey
 - `RAGEVAL_GROQ_API_KEY` — https://console.groq.com/keys
+
+## Ingest
+
+```bash
+uv run python -m rageval.ingest documents/
+```
+
+Loads every `.md` and `.txt` under the directory, chunks each one, and writes
+`data/corpus/<corpus_version>/` — `documents.jsonl`, `chunks.jsonl` and a
+`manifest.json`. Nothing here calls a model or the network.
+
+Every chunk carries the character span it occupies in its source document, so a
+citation resolves to exact characters rather than to a copy of the text.
+
+`corpus_version` is the hash of the document contents and the chunk parameters,
+so it is stable across re-runs and different the moment either changes. Every
+number this project publishes names the corpus version that produced it: without
+that, two measurements cannot be compared.
 
 ## Checks
 
