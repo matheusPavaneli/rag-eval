@@ -122,3 +122,8 @@ F3's number.
 - F3 inherits `build_chat_provider` and `build_embedding_provider`, one shared
   `Budget` per run, and `embedding_dimension` as the number its vector column
   is built on.
+- Model ids are `Settings` fields, and they had to be: the ids this slice was
+  planned with — `gemini-2.5-flash` and `llama-3.3-70b-versatile` — both
+  answered 404 on the day it was written. `gemini-3.5-flash` and
+  `openai/gpt-oss-120b` replaced them, confirmed by the live tests, and the next
+  rename is an env change rather than a code change.
