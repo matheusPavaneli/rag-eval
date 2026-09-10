@@ -13,7 +13,7 @@ class Settings(BaseSettings):
         frozen=True,
     )
 
-    database_url: str = "postgresql://rageval:rageval@localhost:5433/rageval"
+    database_url: str = "postgresql://rageval:rageval@127.0.0.1:5433/rageval"
     cache_dir: Path = Path(".cache")
     gemini_api_key: SecretStr | None = None
     groq_api_key: SecretStr | None = None
