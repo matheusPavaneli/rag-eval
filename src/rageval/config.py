@@ -15,6 +15,8 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql://rageval:rageval@127.0.0.1:5433/rageval"
     cache_dir: Path = Path(".cache")
+    documents_dir: Path = Path("documents")
+    corpus_dir: Path = Path("data/corpus")
     gemini_api_key: SecretStr | None = None
     groq_api_key: SecretStr | None = None
 
