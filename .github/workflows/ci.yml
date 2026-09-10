@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --all-groups --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: rageval
+          POSTGRES_PASSWORD: rageval
+          POSTGRES_DB: rageval
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U rageval -d rageval"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --all-groups --frozen
+      - run: psql "$RAGEVAL_DATABASE_URL" -c 'CREATE EXTENSION IF NOT EXISTS vector'
+        env:
+          RAGEVAL_DATABASE_URL: postgresql://rageval:rageval@localhost:5433/rageval
+          PGPASSWORD: rageval
+      - run: uv run pytest -m integration
+        env:
+          RAGEVAL_DATABASE_URL: postgresql://rageval:rageval@localhost:5433/rageval

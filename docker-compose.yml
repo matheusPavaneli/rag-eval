@@ -1,0 +1,20 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: rageval
+      POSTGRES_PASSWORD: rageval
+      POSTGRES_DB: rageval
+    ports:
+      - "5433:5432"
+    volumes:
+      - rageval-pgdata:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rageval -d rageval"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  rageval-pgdata:
