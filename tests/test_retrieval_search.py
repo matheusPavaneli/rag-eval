@@ -36,6 +36,15 @@ def test_top_k_is_passed_to_the_store_and_can_be_overridden_per_call() -> None:
     assert {call[0] for call in store.searches} == {"corpus-1"}
 
 
+def test_a_top_k_of_zero_asks_for_nothing_rather_than_the_default() -> None:
+    store = FakeStore(results=[scored("a.md", 0, 10)])
+    retriever = Retriever(store, FakeEmbeddingProvider(), "corpus-1", top_k=5)
+
+    retriever.retrieve("a question", top_k=0)
+
+    assert [call[2] for call in store.searches] == [0]
+
+
 def test_a_provider_that_returns_no_vector_is_an_error_not_an_empty_result() -> None:
     class EmptyProvider(FakeEmbeddingProvider):
         def embed(self, texts: object = (), task: EmbeddingTask = "document") -> EmbeddingResult:

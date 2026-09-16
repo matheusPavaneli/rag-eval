@@ -142,7 +142,8 @@ index a one-off rather than a recurring tax.
 The report carries `corpus_version`, embedding model, dimension, `chunk_size`,
 `overlap`, `k`, the question count, the run date and how many calls reached the
 network, alongside the two metrics. `EvalReport` is frozen and every run is
-written to `data/eval/`.
+written to `evals/reports/`, which is committed: `data/` is gitignored, so a
+report written there could not stand behind a number published in the README.
 
 Context recall @k answers "did we retrieve the evidence at all". MRR @k answers
 "how far down the list was it". Recall alone would hide a retriever that finds

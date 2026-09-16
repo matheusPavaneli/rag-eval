@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict
@@ -51,7 +51,7 @@ def run_eval(
     retriever: QuestionRetriever,
     chunk_config: ChunkConfig,
     dimension: int,
-    network_calls: int = 0,
+    network_calls: Callable[[], int] = lambda: 0,
 ) -> EvalReport:
     k = retriever.top_k
     results: list[QuestionResult] = []
@@ -80,6 +80,6 @@ def run_eval(
         question_count=len(results),
         context_recall_at_k=mean([result.context_recall for result in results]),
         mrr_at_k=mean([result.reciprocal_rank for result in results]),
-        network_calls=network_calls,
+        network_calls=network_calls(),
         results=tuple(results),
     )

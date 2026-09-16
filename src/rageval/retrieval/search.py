@@ -49,4 +49,5 @@ class Retriever:
                 f"{result.provider} {result.model}: embedding the question returned no vector"
             )
 
-        return self._store.search(self._corpus_version, result.vectors[0], top_k or self._top_k)
+        limit = self._top_k if top_k is None else top_k
+        return self._store.search(self._corpus_version, result.vectors[0], limit)

@@ -3,7 +3,8 @@
 Run when the corpus changes. Every span is found by searching the document text
 for a needle and expanding to the enclosing paragraph, so the set is a function
 of the corpus rather than a hand-copied list of offsets. A needle that is missing,
-or that appears more than once, is reported rather than guessed at.
+or that appears more than once, is reported and nothing is written: a set
+that silently re-points a span is worse than no set at all.
 """
 
 import json
@@ -24,7 +25,7 @@ DRAFT: list[tuple[str, str, str, str, str]] = [
      "There should be one -- and preferably only one -- obvious way to do it.",
      "There should be one-- and preferably only one --obvious way to do it."),
     ("q04", "pep-0257.md", "Which quotes should a docstring use?",
-     "Triple double quotes.", "triple double quotes"),
+     "Triple double quotes.", 'triple double quotes"""` around'),
     ("q05", "pep-0263.md",
      "What is the regular expression a Python source encoding declaration must match?",
      "coding[:=]\\s*([-\\w.]+)", "coding[:=]"),
@@ -32,17 +33,19 @@ DRAFT: list[tuple[str, str, str, str, str]] = [
      "A string literal prefixed with f, whose braces hold expressions evaluated at runtime.",
      "In source code, f-strings are string literals that are prefixed by the"),
     ("q07", "pep-0572.md", "What does the walrus operator do?",
-     "Assigns to a name as part of an expression.", ":="),
+     "Assigns to a name as part of an expression.", ":= expr`."),
     ("q08", "pep-0484.md", "What does PEP 484 say about runtime enforcement of type hints?",
      "Type hints are not enforced at runtime; they are for static checkers.",
      "no type checking happens at runtime"),
     ("q09", "pep-0440.md", "What is the canonical form of a version's release segment?",
-     "A dot-separated sequence of non-negative integers.", "release segment"),
+     "A dot-separated sequence of non-negative integers.",
+     "release segment: `{a|b|rc}N`"),
     ("q10", "pep-0518.md", "Which table in pyproject.toml declares the build system?",
      "[build-system], with a requires key.",
      "for the table: `requires`. This key must have a value of a list"),
     ("q11", "pep-0517.md", "What is a build backend?",
-     "The Python object a build frontend calls to build a wheel or sdist.", "build backend"),
+     "The Python object a build frontend calls to build a wheel or sdist.",
+     "build backend*."),
     ("q12", "pep-0249.md", "What does paramstyle indicate in the DB-API?",
      "The type of parameter marker formatting the module expects.",
      "String constant stating the type of parameter marker formatting"),
@@ -54,7 +57,7 @@ DRAFT: list[tuple[str, str, str, str, str]] = [
      "A syntax is proposed for a generator to delegate part of its"),
     ("q15", "pep-0405.md", "What is a virtual environment?",
      "A self-contained directory tree with its own Python installation and packages.",
-     "virtual environment"),
+     'virtual environments"'),
     ("q16", "pep-0420.md", "What is a namespace package?",
      "A package split across multiple portions with no __init__.py.",
      "Namespace packages are a mechanism for splitting a single Python package"),
@@ -81,7 +84,7 @@ DRAFT: list[tuple[str, str, str, str, str]] = [
      "__init__, __repr__ and __eq__ among other methods.",
      "A class decorator is provided which inspects a class definition for"),
     ("q25", "pep-0561.md", "How does a package declare that it ships type information?",
-     "By including a py.typed marker file.", "py.typed"),
+     "By including a py.typed marker file.", "py.typed` to"),
     ("q26", "pep-0563.md", "What does from __future__ import annotations change?",
      "Annotations are not evaluated at definition time; they are kept as strings.",
      "they are preserved in `__annotations__` in string form"),
@@ -92,7 +95,7 @@ DRAFT: list[tuple[str, str, str, str, str]] = [
      "The builtin list, subscripted directly as list[int].",
      "This PEP proposes to enable support for the generics syntax in all"),
     ("q29", "pep-0604.md", "How is an optional type written under PEP 604?",
-     "As X | None.", "int | str"),
+     "As X | None.", "int | str`"),
     ("q30", "pep-0634.md", "What does a match statement compare a subject against?",
      "A sequence of case patterns.",
      "The match statement first evaluates the subject expression"),
@@ -114,16 +117,22 @@ def main() -> int:
             problems.append(f"{identifier}: {source} is not in the corpus")
             continue
 
-        found = document.text.find(needle)
-        if found == -1:
+        occurrences = document.text.count(needle)
+        if occurrences == 0:
             problems.append(f"{identifier}: needle {needle!r} is absent from {source}")
             continue
+        if occurrences > 1:
+            problems.append(
+                f"{identifier}: needle {needle!r} matches {occurrences} places in {source}; "
+                "lengthen it until it matches one"
+            )
+            continue
 
+        found = document.text.find(needle)
         start, end = _paragraph(document.text, found, found + len(needle))
         excerpt = " ".join(document.text[start:end].split())
-        occurrences = document.text.count(needle)
 
-        print(f"{identifier}  {source}[{start}:{end}]  ({occurrences} occurrence(s) of needle)")
+        print(f"{identifier}  {source}[{start}:{end}]")
         print(f"    Q: {question}")
         print(f"    A: {answer}")
         print(f"    span: {excerpt[:220]}")
@@ -145,12 +154,17 @@ def main() -> int:
         print("PROBLEMS", file=sys.stderr)
         for problem in problems:
             print(f"  {problem}", file=sys.stderr)
+        print(
+            f"{len(out)}/{len(DRAFT)} questions resolved; nothing written",
+            file=sys.stderr,
+        )
+        return 1
 
     target = Path(settings.golden_set_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("\n".join(out) + "\n", encoding="utf-8", newline="\n")
     print(f"{len(out)}/{len(DRAFT)} questions written to {target}")
-    return 1 if problems else 0
+    return 0
 
 
 def _paragraph(text: str, start: int, end: int) -> tuple[int, int]:
