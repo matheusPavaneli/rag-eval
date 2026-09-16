@@ -1,4 +1,5 @@
 import os
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -6,6 +7,10 @@ import psycopg
 import pytest
 
 from rageval.config import Settings
+
+# scripts/ holds the corpus and golden-set generators. They are not part of the
+# package, but their output is committed, so their behaviour is pinned by tests.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 DATABASE_URL = os.environ.get("RAGEVAL_DATABASE_URL") or Settings().database_url
 

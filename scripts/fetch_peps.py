@@ -171,16 +171,18 @@ def _block(lines: Sequence[str], index: int, match: re.Match[str]) -> Iterator[s
 
 
 def _indented(lines: Sequence[str], start: int, outer: int) -> Iterator[str]:
-    inner: int | None = None
+    block: list[str] = []
     for line in lines[start:]:
         if not line.strip():
-            yield ""
+            block.append("")
             continue
-        indent = _indent(line)
-        if indent <= outer:
-            return
-        inner = indent if inner is None else min(inner, indent)
-        yield line[inner:]
+        if _indent(line) <= outer:
+            break
+        block.append(line)
+
+    inner = min((_indent(line) for line in block if line), default=0)
+    for line in block:
+        yield line[inner:] if line else ""
 
 
 def _heading(lines: Sequence[str], index: int, levels: dict[str, int]) -> str | None:

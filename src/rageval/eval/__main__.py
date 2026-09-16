@@ -1,6 +1,7 @@
 import argparse
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
 import httpx
 import psycopg
@@ -16,15 +17,27 @@ from rageval.retrieval.search import Retriever
 from rageval.retrieval.store import RetrievalError, VectorStore
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    settings = get_settings()
+def _positive(value: str) -> int:
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"k must be at least 1, got {number}")
+    return number
 
+
+def build_parser(golden_set_path: Path, top_k: int) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="rageval.eval", description="Measure retrieval against the golden set"
     )
     parser.add_argument("--corpus-version", default=None)
-    parser.add_argument("--golden-set", default=settings.golden_set_path)
-    parser.add_argument("-k", type=int, default=settings.retrieval_top_k)
+    parser.add_argument("--golden-set", type=Path, default=golden_set_path)
+    parser.add_argument("-k", type=_positive, default=top_k)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    settings = get_settings()
+
+    parser = build_parser(settings.golden_set_path, settings.retrieval_top_k)
     arguments = parser.parse_args(argv)
 
     try:
@@ -56,7 +69,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 Retriever(store, provider, version, arguments.k),
                 manifest.chunk_config,
                 settings.embedding_dimension,
-                budget.state.calls,
+                lambda: budget.state.calls,
             )
     except (GoldenSetError, RetrievalError, ProviderError, DocumentReadError) as error:
         print(f"eval failed: {error}", file=sys.stderr)

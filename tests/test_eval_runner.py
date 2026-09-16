@@ -25,7 +25,7 @@ def _answers(**pairs: list[ScoredChunk]) -> dict[str, list[ScoredChunk]]:
 def test_the_report_names_the_configuration_that_produced_it() -> None:
     retriever = StubRetriever(_answers(q1=[scored("a.md", 100, 200)]), top_k=5, corpus_version="ab")
 
-    report = run_eval([_question("q1")], retriever, CONFIG, dimension=768, network_calls=3)
+    report = run_eval([_question("q1")], retriever, CONFIG, dimension=768, network_calls=lambda: 3)
 
     assert report.corpus_version == "ab"
     assert report.embedding_model == "fake-embed"
@@ -35,6 +35,30 @@ def test_the_report_names_the_configuration_that_produced_it() -> None:
     assert report.k == 5
     assert report.question_count == 1
     assert report.network_calls == 3
+
+
+def test_the_network_count_is_read_after_the_run_not_before_it() -> None:
+    calls = 0
+
+    class CountingRetriever(StubRetriever):
+        def retrieve(self, question: str, top_k: int | None = None) -> tuple[ScoredChunk, ...]:
+            nonlocal calls
+            calls += 1
+            return super().retrieve(question, top_k)
+
+    retriever = CountingRetriever(
+        _answers(q1=[scored("a.md", 100, 200)], q2=[scored("a.md", 100, 200)]), top_k=5
+    )
+
+    report = run_eval(
+        [_question("q1"), _question("q2")],
+        retriever,
+        CONFIG,
+        dimension=768,
+        network_calls=lambda: calls,
+    )
+
+    assert report.network_calls == 2
 
 
 def test_both_metrics_are_the_mean_over_the_questions() -> None:

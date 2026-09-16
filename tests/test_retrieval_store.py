@@ -6,7 +6,6 @@ from psycopg import sql
 
 from rageval.ingest.chunking import Chunk
 from rageval.retrieval.store import (
-    TABLE,
     DimensionMismatchError,
     RetrievalError,
     VectorStore,
@@ -16,6 +15,9 @@ pytestmark = pytest.mark.integration
 
 DIMENSION = 3
 CORPUS = "test-corpus"
+# Never the production table: a dropped "chunks" would take the indexed corpus
+# behind the published baseline with it.
+TABLE = "chunks_under_test"
 SOURCE_PATHS = {"doc-1": "a.md"}
 
 
@@ -24,7 +26,7 @@ def store(
     database: psycopg.Connection[tuple[object, ...]],
 ) -> Iterator[VectorStore]:
     _drop(database)
-    built = VectorStore(database, DIMENSION)
+    built = VectorStore(database, DIMENSION, table=TABLE)
     built.ensure_schema()
     yield built
     _drop(database)
@@ -68,6 +70,25 @@ def test_upserting_the_same_chunk_twice_leaves_one_row(store: VectorStore) -> No
     assert store.search(CORPUS, [0.0, 1.0, 0.0], limit=1)[0].text == "second"
 
 
+def test_a_renamed_document_updates_the_stored_path_on_re_index(store: VectorStore) -> None:
+    store.upsert(CORPUS, [_chunk(0, "same text")], [[1.0, 0.0, 0.0]], {"doc-1": "a.md"})
+    store.upsert(CORPUS, [_chunk(0, "same text")], [[1.0, 0.0, 0.0]], {"doc-1": "renamed.md"})
+
+    found = store.search(CORPUS, [1.0, 0.0, 0.0], limit=1)[0]
+
+    assert found.source_path == "renamed.md"
+
+
+def test_a_moved_span_updates_the_stored_offsets_on_re_index(store: VectorStore) -> None:
+    moved = _chunk(0).model_copy(update={"start_char": 900, "end_char": 950})
+    store.upsert(CORPUS, [_chunk(0)], [[1.0, 0.0, 0.0]], SOURCE_PATHS)
+    store.upsert(CORPUS, [moved], [[1.0, 0.0, 0.0]], SOURCE_PATHS)
+
+    found = store.search(CORPUS, [1.0, 0.0, 0.0], limit=1)[0]
+
+    assert (found.start_char, found.end_char) == (900, 950)
+
+
 def test_search_returns_the_nearest_vector_first(store: VectorStore) -> None:
     store.upsert(
         CORPUS,
@@ -103,7 +124,7 @@ def test_another_corpus_version_is_not_searched(store: VectorStore) -> None:
 def test_a_table_built_at_another_width_is_refused_by_name(
     database: psycopg.Connection[tuple[object, ...]], store: VectorStore
 ) -> None:
-    wider = VectorStore(database, DIMENSION + 1)
+    wider = VectorStore(database, DIMENSION + 1, table=TABLE)
 
     with pytest.raises(DimensionMismatchError, match=f"stores {DIMENSION}-dimension"):
         wider.ensure_schema()

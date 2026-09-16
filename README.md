@@ -11,18 +11,15 @@ before anything is optimised.
 
 ## The current number
 
-Not published yet. The baseline run is blocked on indexing: 1768 of the 1829
-chunks carry a vector, and the last 61 — all of them in `pep-0695.md` — are
-waiting on the free tier's embedding quota of 1000 requests per day to reset.
+| Date | Configuration | Context recall @5 | MRR @5 |
+| --- | --- | --- | --- |
+| 2026-09-16 | gemini-embedding-001, 768d, chunk 1000/150, k=5, corpus `26b03ce9a1c2c1d4` | 0.767 | 0.603 |
 
-The eval harness refuses to report over a partial index, and that refusal is
-deliberate: a figure measured on 96% of the corpus, published under a corpus
-version whose manifest claims all of it, is exactly the kind of number this
-project exists to argue against. The row lands here when the index is complete.
-
-It will be measured over fifty Python Enhancement Proposals (~1.3 MB, 1829
-chunks) with `gemini-embedding-001` at 768 dimensions and exact cosine search in
-pgvector.
+Measured over fifty Python Enhancement Proposals (~1.3 MB, 1829 chunks) with
+exact cosine search in pgvector, over the whole golden set — the harness refuses
+to report over a partial index or a corpus version it cannot resolve every span
+against. The report behind the row, carrying the per-question result and every
+parameter that produced it, is in [`evals/reports/`](evals/reports/).
 
 **Context recall @5** is the share of supporting passages that appear somewhere in
 the top five. **MRR @5** is how far down the list the first correct passage sat.

@@ -9,8 +9,6 @@ from rageval.ingest.chunking import Chunk
 
 TABLE = "chunks"
 
-_TABLE = sql.Identifier(TABLE)
-
 
 class RetrievalError(Exception):
     pass
@@ -55,9 +53,16 @@ class ChunkStore(Protocol):
 
 
 class VectorStore:
-    def __init__(self, connection: psycopg.Connection[tuple[object, ...]], dimension: int) -> None:
+    def __init__(
+        self,
+        connection: psycopg.Connection[tuple[object, ...]],
+        dimension: int,
+        table: str = TABLE,
+    ) -> None:
         self._connection = connection
         self._dimension = dimension
+        self._table_name = table
+        self._table = sql.Identifier(table)
 
     @property
     def dimension(self) -> int:
@@ -82,7 +87,7 @@ class VectorStore:
                         PRIMARY KEY (corpus_version, chunk_id)
                     )
                     """
-                ).format(table=_TABLE, dimension=sql.Literal(self._dimension))
+                ).format(table=self._table, dimension=sql.Literal(self._dimension))
             )
         self._connection.commit()
         self._assert_dimension()
@@ -123,9 +128,15 @@ class VectorStore:
                                          ordinal, text, start_char, end_char, embedding)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (corpus_version, chunk_id) DO UPDATE
-                        SET text = EXCLUDED.text, embedding = EXCLUDED.embedding
+                        SET document_id = EXCLUDED.document_id,
+                            source_path = EXCLUDED.source_path,
+                            ordinal = EXCLUDED.ordinal,
+                            text = EXCLUDED.text,
+                            start_char = EXCLUDED.start_char,
+                            end_char = EXCLUDED.end_char,
+                            embedding = EXCLUDED.embedding
                     """
-                ).format(table=_TABLE),
+                ).format(table=self._table),
                 rows,
             )
         self._connection.commit()
@@ -145,7 +156,7 @@ class VectorStore:
                     ORDER BY embedding <=> %s::vector
                     LIMIT %s
                     """
-                ).format(table=_TABLE),
+                ).format(table=self._table),
                 (
                     _literal(vector, self._dimension),
                     corpus_version,
@@ -173,7 +184,7 @@ class VectorStore:
         with self._connection.cursor() as cursor:
             cursor.execute(
                 sql.SQL("SELECT count(*) FROM {table} WHERE corpus_version = %s").format(
-                    table=_TABLE
+                    table=self._table
                 ),
                 (corpus_version,),
             )
@@ -188,17 +199,17 @@ class VectorStore:
                 FROM pg_attribute
                 WHERE attrelid = %s::regclass AND attname = 'embedding'
                 """,
-                (TABLE,),
+                (self._table_name,),
             )
             row = cursor.fetchone()
 
         if row is None:
-            raise RetrievalError(f"table {TABLE} has no embedding column")
+            raise RetrievalError(f"table {self._table_name} has no embedding column")
 
         stored = int(row[0])  # type: ignore[call-overload]
         if stored != self._dimension:
             raise DimensionMismatchError(
-                f"table {TABLE} stores {stored}-dimension vectors but this run is configured "
+                f"table {self._table_name} stores {stored}-dimension vectors but this run is "
                 f"for {self._dimension}: drop the table or set RAGEVAL_EMBEDDING_DIMENSION "
                 f"to {stored}"
             )
