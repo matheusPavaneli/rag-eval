@@ -105,10 +105,11 @@ uv run python -m rageval.retrieval --query "What is the maximum line length PEP 
 ### What CI protects
 
 Every pull request and every push to `main` rebuilds the corpus from
-`documents/`, runs the BM25, dense and hybrid evals, and compares each with its
-frozen report. Any difference fails the build: a question whose recall or rank
-moved in either direction, either aggregate, or a report from another
-configuration. No key is involved and no call reaches a model provider.
+`documents/`, runs the BM25, dense and hybrid evals and the answer eval, and
+compares each with its frozen report. Any difference fails the build: a question
+whose recall or rank moved in either direction, an answer whose text, citations
+or spans changed, any aggregate, or a report from another configuration or
+another golden set. No key is involved and no call reaches a model provider.
 
 Dense needs vectors, and CI has no key to make them. Without a key the embedding
 provider serves only from its cache and refuses on a miss. CI fills that cache
@@ -117,20 +118,30 @@ the release
 [`vectors-26b03ce9a1c2c1d4`](https://github.com/matheusPavaneli/rag-eval/releases/tag/vectors-26b03ce9a1c2c1d4)
 and pinned by sha256 in the workflow.
 
-A green check covers ingest, chunking, the lexeme config, the golden-set loader,
-the metrics, BM25, dense retrieval and fusion. It does **not** cover the reranker
-or the answers, or a golden-span edit smaller than a chunk. Ubuntu reproduced the
-Windows baselines exactly. Across the planted regressions, the lexical gate caught
-two that the unit suite missed. The dense gate refused a query embedded as a
-document rather than calling the network, and it caught a fusion bug that
-*raised* MRR. Details in [ADR 0008](docs/adr/0008-quality-gate.md) and
-[ADR 0009](docs/adr/0009-dense-gate.md).
+The answers are replayed from
+[`evals/answers/`](evals/answers/), the 30 recorded model responses committed as
+a fixture: the model's text is fixed, and everything the pipeline derives from
+it is compared. Every report records a digest of the golden set it was scored
+against, so an edited golden span is refused rather than passed.
+
+A green check covers ingest, chunking, the lexeme config, the golden set and its
+loader, the metrics, BM25, dense retrieval, fusion, and the answer pipeline:
+parsing, citation resolution and spans. It does **not** cover the reranker,
+whether a live model would still answer the same way, or whether an answer is
+correct. Ubuntu reproduced the Windows baselines exactly. Across the planted
+regressions, the lexical gate caught two that the unit suite missed. The dense
+gate refused a query embedded as a document rather than calling the network,
+and it caught a fusion bug that *raised* MRR. The answer gate refused a changed
+prompt without a call and caught a golden-span shift that nothing caught
+before. Details in [ADR 0008](docs/adr/0008-quality-gate.md),
+[ADR 0009](docs/adr/0009-dense-gate.md) and
+[ADR 0011](docs/adr/0011-answer-gate.md).
 
 ```bash
 uv run python -m rageval.ingest documents/
 uv run python -m rageval.retrieval --corpus-version 26b03ce9a1c2c1d4 --lexical-only
 uv run python -m rageval.eval --mode bm25 --corpus-version 26b03ce9a1c2c1d4 \
-  --baseline evals/reports/20260918T134848Z-26b03ce9a1c2c1d4-bm25.json --fail-on-change
+  --baseline evals/reports/20260918T175145Z-26b03ce9a1c2c1d4-bm25.json --fail-on-change
 
 # dense and hybrid, with no key: fill the cache from the pinned snapshot
 gh release download vectors-26b03ce9a1c2c1d4 --pattern embeddings-26b03ce9a1c2c1d4.jsonl.gz
@@ -138,13 +149,18 @@ uv run python -m rageval.vectors import embeddings-26b03ce9a1c2c1d4.jsonl.gz \
   --sha256 49f22cf2bc87a061005adce96737f5d22e7803bca063cbeba1b362bbde4bcc82
 uv run python -m rageval.retrieval --corpus-version 26b03ce9a1c2c1d4
 uv run python -m rageval.eval --mode dense --corpus-version 26b03ce9a1c2c1d4 \
-  --baseline evals/reports/20260918T134844Z-26b03ce9a1c2c1d4-dense.json --fail-on-change
+  --baseline evals/reports/20260918T175148Z-26b03ce9a1c2c1d4-dense.json --fail-on-change
+
+# answers, with no key: replay the recorded answers
+uv run python -m rageval.eval --answer --corpus-version 26b03ce9a1c2c1d4   --replay-answers evals/answers/26b03ce9a1c2c1d4-682ec1326b2f.jsonl   --baseline evals/reports/20260918T175155Z-26b03ce9a1c2c1d4-answer-dense.json --fail-on-change
 ```
 
 A change to chunking or to the embedding model is a new corpus version: embed
 it locally with a key, run `python -m rageval.vectors export`, publish a new
 `vectors-<corpus>` release, and update the pins and baselines in `ci.yml` in the
-same PR.
+same PR. A change to the prompt, to retrieval or to a chat model is recorded
+again the same way: answer live with keys and `--record-answers`, then commit
+the new fixture and answer baseline.
 
 ## What is measured, and what that is worth
 
@@ -302,8 +318,11 @@ span — a lower bound, since the golden set records one span where the source
 often has several. **F6** made the harness a CI gate, starting where the number
 is deterministic without a key: BM25, compared per question with zero tolerance.
 A follow-up gated dense and hybrid the same way, from pinned cached vectors
-with no key. Gating answers needs the chat cache moved in front of failover and
-a judge for answer correctness. **F7** puts a frontend on it where clicking a citation highlights the span it
+with no key. The chat cache then moved in front of failover so a recorded answer
+replays, and the answers joined the gate from a committed fixture, with every
+report pinned to its golden set. A correctness judge and abstention were left
+out on purpose: each needs live calls and would replace the published number.
+**F7** puts a frontend on it where clicking a citation highlights the span it
 came from.
 
 The ordering is deliberate, and it is the argument the project is making:

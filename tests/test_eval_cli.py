@@ -3,10 +3,10 @@ from pathlib import Path
 
 import pytest
 
-from rageval.eval.__main__ import _config_slug, _mode_slug, _report_drift
+from rageval.eval.__main__ import _config_slug, _mode_slug, _report_answer_drift, _report_drift
 from rageval.eval.__main__ import build_parser as eval_parser
 from rageval.eval.__main__ import main as eval_main
-from rageval.eval.answers import AnswerReport
+from rageval.eval.answers import AggregateDrift, AnswerDrift, AnswerQuestionDrift, AnswerReport
 from rageval.eval.runner import Drift, QuestionDrift
 from rageval.retrieval.__main__ import build_parser as retrieval_parser
 from rageval.retrieval.__main__ import main as retrieval_main
@@ -101,7 +101,7 @@ def test_an_answer_report_file_is_named_after_its_retriever() -> None:
         rageval_version="0",
         corpus_version="c",
         embedding_model="e",
-        chat_model="m",
+        chat_chain=("gemini/m", "groq/n"),
         prompt_version="p",
         k=5,
         question_count=0,
@@ -121,12 +121,25 @@ def test_an_answer_report_file_is_named_after_its_retriever() -> None:
     assert _mode_slug(report) == "answer-dense"
 
 
-@pytest.mark.parametrize("extra", [["--rerank"], ["--baseline", "evals/reports/x.json"]])
-def test_answering_refuses_a_reranker_or_a_baseline_before_touching_anything(
-    extra: list[str],
-) -> None:
+def test_answering_refuses_a_reranker_before_touching_anything() -> None:
     with pytest.raises(SystemExit) as refused:
-        eval_main(["--answer", *extra])
+        eval_main(["--answer", "--rerank"])
+
+    assert refused.value.code == 2
+
+
+def test_an_answer_run_can_be_gated_against_a_baseline() -> None:
+    arguments = eval_parser(DEFAULT, top_k=5).parse_args(
+        ["--answer", "--baseline", "evals/reports/x.json", "--fail-on-change"]
+    )
+
+    assert (arguments.answer, arguments.fail_on_change) == (True, True)
+
+
+@pytest.mark.parametrize("flag", ["--record-answers", "--replay-answers"])
+def test_recording_or_replaying_answers_needs_an_answer_run(flag: str) -> None:
+    with pytest.raises(SystemExit) as refused:
+        eval_main([flag, "answers.jsonl"])
 
     assert refused.value.code == 2
 
@@ -140,9 +153,9 @@ def test_answering_one_question_needs_the_question() -> None:
 
 @pytest.mark.parametrize(
     "arguments",
-    [["--fail-on-change"], ["--fail-on-change", "--answer", "--baseline", "evals/reports/x.json"]],
+    [["--fail-on-change"], ["--fail-on-change", "--answer"]],
 )
-def test_the_gate_needs_a_baseline_and_refuses_answers_before_touching_anything(
+def test_the_gate_needs_a_baseline_before_touching_anything(
     arguments: list[str],
 ) -> None:
     with pytest.raises(SystemExit) as refused:
@@ -176,3 +189,22 @@ def test_drift_fails_the_gate_naming_each_question(capsys: pytest.CaptureFixture
     err = capsys.readouterr().err
     assert "q07  recall 1.000 -> 0.000, rr 0.500 -> 0.000" in err
     assert "0.6 -> 0.567" in err
+
+
+def test_no_answer_drift_passes_the_gate(capsys: pytest.CaptureFixture[str]) -> None:
+    assert _report_answer_drift(AnswerDrift(changed=(), aggregates=()), Path("base.json")) == 0
+    assert "no drift from base.json" in capsys.readouterr().out
+
+
+def test_answer_drift_fails_the_gate_naming_each_question_and_aggregate(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    gate = AnswerDrift(
+        changed=(AnswerQuestionDrift(id="q04", fields=("citations", "citation_hit")),),
+        aggregates=(AggregateDrift(field="citation_hit_rate", before=0.533, after=0.5),),
+    )
+
+    assert _report_answer_drift(gate, Path("base.json")) == 1
+    err = capsys.readouterr().err
+    assert "q04  citations, citation_hit" in err
+    assert "citation_hit_rate 0.533 -> 0.5" in err

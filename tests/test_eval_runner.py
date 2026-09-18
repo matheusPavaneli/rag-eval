@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from conftest_retrieval import StubRetriever, scored
-from rageval.eval.golden import GoldenQuestion, Support
+from rageval.eval.golden import GoldenQuestion, Support, golden_digest
 from rageval.eval.runner import EvalReport, ReportMismatchError, compare, drift, run_eval
 from rageval.ingest.chunking import ChunkConfig
 from rageval.retrieval.search import (
@@ -256,7 +256,7 @@ def test_compare_refuses_reports_that_do_not_measure_the_same_thing(
 
 
 BM25_REPORT = Path(__file__).parent.parent / Path(
-    "evals/reports/20260918T134848Z-26b03ce9a1c2c1d4-bm25.json"
+    "evals/reports/20260918T175145Z-26b03ce9a1c2c1d4-bm25.json"
 )
 
 
@@ -339,3 +339,33 @@ def test_the_committed_bm25_baseline_has_no_drift_from_itself() -> None:
 
     assert report.retrieval == Bm25Config(k1=1.2, b=0.75)
     assert not drift(report, report).any
+
+
+def test_a_report_records_the_golden_set_it_was_scored_against() -> None:
+    questions = [_question("q1"), _question("q2")]
+
+    report = run_eval(questions, StubRetriever({}), CONFIG, dimension=768)
+
+    assert report.golden_set_digest == golden_digest(questions)
+
+
+def test_a_golden_span_moved_under_the_same_results_is_refused_not_passed() -> None:
+    baseline = _report({"q1": True})
+    moved = run_eval(
+        [_question("q1", start=140, end=240)],
+        StubRetriever({"question q1": [scored("a.md", 100, 200)]}, top_k=5, corpus_version="cafe"),
+        CONFIG,
+        dimension=768,
+    )
+
+    with pytest.raises(ReportMismatchError, match="golden set differs"):
+        drift(baseline, moved)
+    with pytest.raises(ReportMismatchError, match="golden set differs"):
+        compare(baseline, moved)
+
+
+def test_a_baseline_that_records_no_golden_set_is_refused() -> None:
+    report = _report({"q1": True})
+
+    with pytest.raises(ReportMismatchError, match="records none"):
+        drift(report.model_copy(update={"golden_set_digest": None}), report)

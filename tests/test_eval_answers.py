@@ -5,13 +5,14 @@ import pytest
 
 from conftest_retrieval import StubRetriever, scored
 from rageval.answer.generate import PROMPT_VERSION
-from rageval.eval.answers import AnswerReport, run_answer_eval
-from rageval.eval.golden import GoldenQuestion, Support
-from rageval.eval.runner import EvalReport
+from rageval.eval.answers import AnswerReport, answer_drift, run_answer_eval
+from rageval.eval.golden import GoldenQuestion, Support, golden_digest
+from rageval.eval.runner import EvalReport, ReportMismatchError
 from rageval.providers.base import ChatResult
 from rageval.retrieval.store import ScoredChunk
 
 REPORTS = Path(__file__).resolve().parent.parent / "evals" / "reports"
+CHAIN = ("stub/stub-model", "backup/backup-model")
 
 
 class ChatByQuestion:
@@ -70,7 +71,7 @@ CHAT = ChatByQuestion(
 
 @pytest.fixture
 def report() -> AnswerReport:
-    return run_answer_eval(QUESTIONS, RETRIEVER, CHAT, network_calls=lambda: 7)
+    return run_answer_eval(QUESTIONS, RETRIEVER, CHAT, CHAIN, network_calls=lambda: 7)
 
 
 def test_the_hit_rate_counts_questions_whose_citation_lands_on_the_gold_span(
@@ -105,7 +106,8 @@ def test_citation_length_is_compared_with_the_length_of_the_chunk_it_came_from(
 
 def test_the_report_names_what_produced_the_number(report: AnswerReport) -> None:
     assert report.prompt_version == PROMPT_VERSION
-    assert report.chat_model == "stub-model"
+    assert report.chat_chain == CHAIN
+    assert report.golden_set_digest == golden_digest(QUESTIONS)
     assert report.providers == {"stub/stub-model": 3}
     assert (report.k, report.corpus_version, report.network_calls) == (5, "cafef00d", 7)
     assert "`" + PROMPT_VERSION + "`" in report.table_row()
@@ -116,7 +118,7 @@ def test_the_table_row_names_the_models_that_answered_not_the_configured_primary
 ) -> None:
     mixed = report.model_copy(
         update={
-            "chat_model": "primary-model",
+            "chat_chain": ("gemini/primary-model", "groq/fallback-model"),
             "providers": {"gemini/primary-model": 1, "groq/fallback-model": 29},
         }
     )
@@ -137,3 +139,54 @@ def test_existing_retrieval_reports_still_load_as_retrieval_reports() -> None:
     assert retrieval_reports
     for path in retrieval_reports:
         EvalReport.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+def test_a_report_has_no_answer_drift_from_itself(report: AnswerReport) -> None:
+    assert not answer_drift(report, report).any
+
+
+def test_answer_drift_names_the_question_and_the_field_that_moved(report: AnswerReport) -> None:
+    first = report.results[0]
+    moved_citation = first.citations[0].model_copy(update={"end_char": 1024})
+    moved = report.model_copy(
+        update={
+            "results": (
+                first.model_copy(update={"citations": (moved_citation,), "provider": "other"}),
+                *report.results[1:],
+            ),
+            "citation_hit_rate": 0.0,
+        }
+    )
+
+    drift = answer_drift(report, moved)
+
+    assert [(question.id, question.fields) for question in drift.changed] == [
+        ("q1", ("citations", "provider"))
+    ]
+    assert [
+        (aggregate.field, aggregate.before, aggregate.after) for aggregate in drift.aggregates
+    ] == [("citation_hit_rate", report.citation_hit_rate, 0.0)]
+    assert drift.any
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("prompt_version", "another"),
+        ("chat_chain", ("stub/another-model",)),
+        ("golden_set_digest", "0" * 64),
+        ("golden_set_digest", None),
+        ("corpus_version", "another"),
+        ("k", 3),
+    ],
+)
+def test_answer_drift_refuses_a_report_that_is_not_comparable(
+    report: AnswerReport, field: str, value: object
+) -> None:
+    with pytest.raises(ReportMismatchError):
+        answer_drift(report, report.model_copy(update={field: value}))
+
+
+def test_answer_drift_refuses_a_different_question_set(report: AnswerReport) -> None:
+    with pytest.raises(ReportMismatchError, match="question set differs"):
+        answer_drift(report, report.model_copy(update={"results": report.results[:2]}))

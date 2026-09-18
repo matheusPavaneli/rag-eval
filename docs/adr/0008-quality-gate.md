@@ -112,6 +112,8 @@ would not have produced a run.
   that resolution is invisible to it. The citation metric would see it, and it
   is not gated. Until it is, the golden set is protected by the rule that it is
   never edited after measuring, and by that file showing up in a PR's diff.
+  *Closed by [ADR 0011](0011-answer-gate.md): every report records a golden-set
+  digest, and the same shift now fails all four gates.*
 
 ## Consequences
 

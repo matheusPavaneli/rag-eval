@@ -67,6 +67,10 @@ def build_budget(settings: Settings) -> Budget:
     return Budget(settings.budget_max_calls, settings.budget_max_input_chars)
 
 
+def chat_chain(settings: Settings) -> tuple[str, ...]:
+    return (f"{GEMINI}/{settings.gemini_chat_model}", f"{GROQ}/{settings.groq_chat_model}")
+
+
 def build_chat_provider(
     settings: Settings, client: httpx.Client, budget: Budget | None = None
 ) -> ChatProvider:
@@ -74,7 +78,7 @@ def build_chat_provider(
     cache = DiskCache(settings.cache_dir / CACHE_NAMESPACE)
     # The cache key is the configured chain, not the keys that happen to be set,
     # so a run with no key replays exactly what a keyed run recorded.
-    chain = (f"{GEMINI}/{settings.gemini_chat_model}", f"{GROQ}/{settings.groq_chat_model}")
+    chain = chat_chain(settings)
     providers: list[ChatProvider] = []
 
     if settings.gemini_api_key is not None:
