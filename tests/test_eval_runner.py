@@ -4,7 +4,7 @@ import pytest
 
 from conftest_retrieval import StubRetriever, scored
 from rageval.eval.golden import GoldenQuestion, Support
-from rageval.eval.runner import EvalReport, ReportMismatchError, compare, run_eval
+from rageval.eval.runner import EvalReport, ReportMismatchError, compare, drift, run_eval
 from rageval.ingest.chunking import ChunkConfig
 from rageval.retrieval.search import (
     Bm25Config,
@@ -253,3 +253,89 @@ def test_compare_refuses_reports_that_do_not_measure_the_same_thing(
 
     with pytest.raises(ReportMismatchError, match=named):
         compare(_report({"q1": True}), other)
+
+
+BM25_REPORT = Path(__file__).parent.parent / Path(
+    "evals/reports/20260918T134848Z-26b03ce9a1c2c1d4-bm25.json"
+)
+
+
+def _ranked(q1: list[ScoredChunk], config: Bm25Config | None = None) -> EvalReport:
+    return run_eval(
+        [_question("q1")],
+        StubRetriever(_answers(q1=q1), corpus_version="cafe", config=config),
+        CONFIG,
+        dimension=768,
+    )
+
+
+def test_identical_reports_have_no_drift() -> None:
+    gate = drift(_report({"q1": True, "q2": False}), _report({"q1": True, "q2": False}))
+
+    assert gate.changed == ()
+    assert not gate.any
+
+
+def test_a_hit_that_only_moved_rank_is_drift_although_it_is_not_a_flip() -> None:
+    baseline = _ranked([scored("a.md", 100, 200)])
+    moved = _ranked([scored("b.md", 0, 10), scored("a.md", 100, 200)])
+
+    gate = drift(baseline, moved)
+
+    assert compare(baseline, moved).lost == ()
+    assert [(q.id, q.reciprocal_rank) for q in gate.changed] == [("q1", (1.0, 0.5))]
+    assert gate.mrr_at_k == (1.0, 0.5)
+    assert gate.any
+
+
+def test_an_improvement_is_drift_like_a_regression() -> None:
+    gate = drift(_report({"q1": False}), _report({"q1": True}))
+
+    assert [(q.id, q.context_recall) for q in gate.changed] == [("q1", (0.0, 1.0))]
+    assert gate.any
+
+
+def test_an_aggregate_that_moved_alone_is_drift() -> None:
+    baseline = _report({"q1": True})
+    candidate = baseline.model_copy(update={"mrr_at_k": 0.9})
+
+    gate = drift(baseline, candidate)
+
+    assert gate.changed == ()
+    assert gate.any
+
+
+@pytest.mark.parametrize(
+    "candidate", [None, Bm25Config(k1=1.2, b=0.75), Bm25Config(k1=0.9, b=0.75)]
+)
+def test_drift_refuses_a_report_from_another_retrieval_config(
+    candidate: Bm25Config | None,
+) -> None:
+    baseline = _ranked([scored("a.md", 100, 200)], Bm25Config(k1=1.2, b=0.4))
+
+    with pytest.raises(ReportMismatchError, match="retrieval config differs"):
+        drift(baseline, _ranked([scored("a.md", 100, 200)], candidate))
+
+
+@pytest.mark.parametrize(
+    ("corpus_version", "top_k", "hits", "named"),
+    [
+        ("other", 5, {"q1": True}, "corpus_version differs"),
+        ("cafe", 3, {"q1": True}, "k differs"),
+        ("cafe", 5, {"q1": True, "q9": True}, "question set differs"),
+    ],
+)
+def test_drift_refuses_what_compare_refuses(
+    corpus_version: str, top_k: int, hits: dict[str, bool], named: str
+) -> None:
+    other = _report(hits, corpus_version=corpus_version, top_k=top_k)
+
+    with pytest.raises(ReportMismatchError, match=named):
+        drift(_report({"q1": True}), other)
+
+
+def test_the_committed_bm25_baseline_has_no_drift_from_itself() -> None:
+    report = EvalReport.model_validate_json(BM25_REPORT.read_text(encoding="utf-8"))
+
+    assert report.retrieval == Bm25Config(k1=1.2, b=0.75)
+    assert not drift(report, report).any

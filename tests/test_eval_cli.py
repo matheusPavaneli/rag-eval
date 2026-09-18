@@ -3,10 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from rageval.eval.__main__ import _config_slug, _mode_slug
+from rageval.eval.__main__ import _config_slug, _mode_slug, _report_drift
 from rageval.eval.__main__ import build_parser as eval_parser
 from rageval.eval.__main__ import main as eval_main
 from rageval.eval.answers import AnswerReport
+from rageval.eval.runner import Drift, QuestionDrift
 from rageval.retrieval.__main__ import build_parser as retrieval_parser
 from rageval.retrieval.__main__ import main as retrieval_main
 from rageval.retrieval.search import Bm25Config, DenseConfig, HybridConfig, RerankConfig
@@ -135,3 +136,43 @@ def test_answering_one_question_needs_the_question() -> None:
         retrieval_main(["--answer"])
 
     assert refused.value.code == 2
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [["--fail-on-change"], ["--fail-on-change", "--answer", "--baseline", "evals/reports/x.json"]],
+)
+def test_the_gate_needs_a_baseline_and_refuses_answers_before_touching_anything(
+    arguments: list[str],
+) -> None:
+    with pytest.raises(SystemExit) as refused:
+        eval_main(arguments)
+
+    assert refused.value.code == 2
+
+
+def test_indexing_lexically_refuses_a_query() -> None:
+    with pytest.raises(SystemExit) as refused:
+        retrieval_main(["--lexical-only", "--query", "what is an enumeration?"])
+
+    assert refused.value.code == 2
+
+
+def test_no_drift_passes_the_gate(capsys: pytest.CaptureFixture[str]) -> None:
+    gate = Drift(changed=(), context_recall_at_k=(0.6, 0.6), mrr_at_k=(0.465, 0.465))
+
+    assert _report_drift(gate, Path("base.json")) == 0
+    assert "no drift from base.json" in capsys.readouterr().out
+
+
+def test_drift_fails_the_gate_naming_each_question(capsys: pytest.CaptureFixture[str]) -> None:
+    gate = Drift(
+        changed=(QuestionDrift(id="q07", context_recall=(1.0, 0.0), reciprocal_rank=(0.5, 0.0)),),
+        context_recall_at_k=(0.6, 0.567),
+        mrr_at_k=(0.465, 0.448),
+    )
+
+    assert _report_drift(gate, Path("base.json")) == 1
+    err = capsys.readouterr().err
+    assert "q07  recall 1.000 -> 0.000, rr 0.500 -> 0.000" in err
+    assert "0.6 -> 0.567" in err

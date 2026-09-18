@@ -55,6 +55,7 @@ class FakeStore:
         self._lexical_results = tuple(lexical_results)
         self.schema_calls = 0
         self.upserts: list[list[Chunk]] = []
+        self.text_inserts: list[tuple[str, list[Chunk], dict[str, str]]] = []
         self.searches: list[tuple[str, tuple[float, ...], int]] = []
         self.lexical_searches: list[tuple[str, str, int]] = []
         self._terms = tuple(terms)
@@ -81,6 +82,12 @@ class FakeStore:
         self.upserts.append(list(chunks))
         return len(chunks)
 
+    def insert_text(
+        self, corpus_version: str, chunks: Sequence[Chunk], source_paths: dict[str, str]
+    ) -> int:
+        self.text_inserts.append((corpus_version, list(chunks), dict(source_paths)))
+        return len(chunks)
+
     def search(
         self, corpus_version: str, vector: Sequence[float], limit: int
     ) -> tuple[ScoredChunk, ...]:
@@ -100,8 +107,9 @@ class FakeStore:
     def query_terms(self, question: str) -> tuple[str, ...]:
         return tuple(self._query_terms.get(question, question.lower().split()))
 
-    def count(self, corpus_version: str) -> int:
-        return sum(len(batch) for batch in self.upserts)
+    def count(self, corpus_version: str, embedded: bool = False) -> int:
+        texts = 0 if embedded else sum(len(chunks) for _, chunks, _ in self.text_inserts)
+        return sum(len(batch) for batch in self.upserts) + texts
 
 
 class StubRetriever:

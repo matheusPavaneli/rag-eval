@@ -52,3 +52,35 @@ jobs:
       - run: uv run pytest -m integration
         env:
           RAGEVAL_DATABASE_URL: postgresql://rageval:rageval@127.0.0.1:5433/rageval
+
+  quality-gate:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: rageval
+          POSTGRES_PASSWORD: rageval
+          POSTGRES_DB: rageval
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U rageval -d rageval"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      RAGEVAL_DATABASE_URL: postgresql://rageval:rageval@127.0.0.1:5433/rageval
+      CORPUS: 26b03ce9a1c2c1d4
+      BASELINE: evals/reports/20260918T134848Z-26b03ce9a1c2c1d4-bm25.json
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run python -m rageval.ingest documents/
+      - run: uv run python -m rageval.retrieval --corpus-version "$CORPUS" --lexical-only
+      - run: >-
+          uv run python -m rageval.eval --mode bm25 --corpus-version "$CORPUS"
+          --baseline "$BASELINE" --fail-on-change
