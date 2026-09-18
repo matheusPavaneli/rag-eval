@@ -2,8 +2,10 @@ from pathlib import Path
 
 import pytest
 
+from rageval.eval.__main__ import _config_slug
 from rageval.eval.__main__ import build_parser as eval_parser
 from rageval.retrieval.__main__ import build_parser as retrieval_parser
+from rageval.retrieval.search import Bm25Config, DenseConfig, HybridConfig, RerankConfig
 
 DEFAULT = Path("evals/golden-set.jsonl")
 
@@ -62,3 +64,22 @@ def test_a_baseline_given_on_the_command_line_arrives_as_a_path() -> None:
     arguments = eval_parser(DEFAULT, top_k=5).parse_args(["--baseline", "evals/reports/x.json"])
 
     assert arguments.baseline == Path("evals/reports/x.json")
+
+
+def test_reranking_is_off_unless_asked_for_and_combines_with_any_mode() -> None:
+    assert eval_parser(DEFAULT, top_k=5).parse_args([]).rerank is False
+    arguments = eval_parser(DEFAULT, top_k=5).parse_args(["--mode", "hybrid", "--rerank"])
+
+    assert (arguments.mode, arguments.rerank) == ("hybrid", True)
+
+
+def test_a_rerank_report_file_is_named_after_its_first_stage() -> None:
+    hybrid = HybridConfig(rrf_k=60, candidates=20, lexical=Bm25Config(k1=1.2, b=0.75))
+
+    def rerank(first_stage: DenseConfig | HybridConfig) -> RerankConfig:
+        return RerankConfig(model="m", revision="r", candidates=20, first_stage=first_stage)
+
+    assert _config_slug(rerank(DenseConfig())) == "rerank-dense"
+    assert _config_slug(rerank(hybrid)) == "rerank-hybrid-bm25"
+    assert _config_slug(hybrid) == "hybrid-bm25"
+    assert _config_slug(Bm25Config(k1=1.2, b=0.75)) == "bm25"

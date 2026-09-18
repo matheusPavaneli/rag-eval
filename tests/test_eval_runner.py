@@ -6,7 +6,13 @@ from conftest_retrieval import StubRetriever, scored
 from rageval.eval.golden import GoldenQuestion, Support
 from rageval.eval.runner import EvalReport, ReportMismatchError, compare, run_eval
 from rageval.ingest.chunking import ChunkConfig
-from rageval.retrieval.search import Bm25Config, DenseConfig, FullTextConfig, HybridConfig
+from rageval.retrieval.search import (
+    Bm25Config,
+    DenseConfig,
+    FullTextConfig,
+    HybridConfig,
+    RerankConfig,
+)
 from rageval.retrieval.store import ScoredChunk
 
 CONFIG = ChunkConfig(chunk_size=800, overlap=120)
@@ -135,7 +141,7 @@ def _report(hits: dict[str, bool], corpus_version: str = "cafe", top_k: int = 5)
     )
 
 
-def _row(config: FullTextConfig | Bm25Config | HybridConfig) -> str:
+def _row(config: FullTextConfig | Bm25Config | HybridConfig | RerankConfig) -> str:
     report = run_eval([_question("q1")], StubRetriever({}, config=config), CONFIG, dimension=768)
     assert report.retrieval == config
     return report.table_row()
@@ -160,6 +166,35 @@ def test_the_report_records_the_retrieval_config_and_the_row_names_it() -> None:
 
 def test_a_hybrid_report_round_trips_with_the_ranker_it_fused() -> None:
     config = HybridConfig(rrf_k=60, candidates=20, lexical=Bm25Config(k1=1.2, b=0.75))
+    report = run_eval([_question("q1")], StubRetriever({}, config=config), CONFIG, dimension=768)
+
+    assert EvalReport.model_validate_json(report.model_dump_json()).retrieval == config
+
+
+def _rerank(first_stage: DenseConfig | HybridConfig) -> RerankConfig:
+    return RerankConfig(
+        model="cross-encoder/ms-marco-MiniLM-L6-v2",
+        revision="233902d25c440f23af6f7d6e94d2946bac0bee0a",
+        candidates=20,
+        first_stage=first_stage,
+    )
+
+
+def test_a_rerank_row_names_the_model_revision_depth_and_first_stage() -> None:
+    hybrid = HybridConfig(rrf_k=60, candidates=20, lexical=Bm25Config(k1=1.2, b=0.75))
+
+    assert (
+        "| rerank (cross-encoder/ms-marco-MiniLM-L6-v2@233902d, top 20) over "
+        "dense: fake-embed, 768d, chunk 800/120"
+    ) in _row(_rerank(DenseConfig()))
+    assert (
+        "top 20) over hybrid (RRF k=60, 20 candidates each): fake-embed, 768d + "
+        "BM25 (k1=1.2, b=0.75) over Postgres english lexemes, chunk"
+    ) in _row(_rerank(hybrid))
+
+
+def test_a_rerank_report_round_trips_with_its_first_stage_intact() -> None:
+    config = _rerank(HybridConfig(rrf_k=60, candidates=20, lexical=Bm25Config(k1=1.2, b=0.75)))
     report = run_eval([_question("q1")], StubRetriever({}, config=config), CONFIG, dimension=768)
 
     assert EvalReport.model_validate_json(report.model_dump_json()).retrieval == config

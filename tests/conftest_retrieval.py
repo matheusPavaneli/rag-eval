@@ -7,6 +7,7 @@ from rageval.retrieval.search import (
     DenseConfig,
     FullTextConfig,
     HybridConfig,
+    RerankConfig,
 )
 from rageval.retrieval.store import ChunkTerms, ScoredChunk
 
@@ -109,12 +110,18 @@ class StubRetriever:
         answers: Mapping[str, Sequence[ScoredChunk]],
         top_k: int = 5,
         corpus_version: str = "cafef00d",
-        config: DenseConfig | FullTextConfig | Bm25Config | HybridConfig | None = None,
+        config: DenseConfig
+        | FullTextConfig
+        | Bm25Config
+        | HybridConfig
+        | RerankConfig
+        | None = None,
     ) -> None:
         self._answers = answers
         self._top_k = top_k
         self._corpus_version = corpus_version
         self._config = config or DenseConfig()
+        self.requests: list[tuple[str, int | None]] = []
 
     @property
     def top_k(self) -> int:
@@ -129,11 +136,31 @@ class StubRetriever:
         return None if isinstance(self._config, FullTextConfig | Bm25Config) else "fake-embed"
 
     @property
-    def config(self) -> DenseConfig | FullTextConfig | Bm25Config | HybridConfig:
+    def config(self) -> DenseConfig | FullTextConfig | Bm25Config | HybridConfig | RerankConfig:
         return self._config
 
     def retrieve(self, question: str, top_k: int | None = None) -> tuple[ScoredChunk, ...]:
+        self.requests.append((question, top_k))
         return tuple(self._answers.get(question, ()))[: top_k or self._top_k]
+
+
+class FakeCrossEncoder:
+    def __init__(self, scores: Mapping[str, float], extra: int = 0) -> None:
+        self._scores = scores
+        self._extra = extra
+        self.calls: list[tuple[str, tuple[str, ...]]] = []
+
+    @property
+    def model(self) -> str:
+        return "fake/cross-encoder"
+
+    @property
+    def revision(self) -> str:
+        return "0123456789abcdef"
+
+    def score(self, question: str, texts: Sequence[str]) -> tuple[float, ...]:
+        self.calls.append((question, tuple(texts)))
+        return tuple(self._scores.get(text, 0.0) for text in texts) + (0.0,) * self._extra
 
 
 def scored(

@@ -18,6 +18,8 @@ before anything is optimised.
 | 2026-09-18 | bm25: BM25 (k1=1.2, b=0.75) over Postgres english lexemes, chunk 1000/150, k=5, corpus `26b03ce9a1c2c1d4` | 0.600 | 0.465 |
 | 2026-09-18 | hybrid (RRF k=60, 20 candidates each): gemini-embedding-001, 768d + Postgres full-text (ts_rank_cd, english), chunk 1000/150, k=5, corpus `26b03ce9a1c2c1d4` | 0.767 | 0.439 |
 | 2026-09-18 | hybrid (RRF k=60, 20 candidates each): gemini-embedding-001, 768d + BM25 (k1=1.2, b=0.75) over Postgres english lexemes, chunk 1000/150, k=5, corpus `26b03ce9a1c2c1d4` | 0.800 | 0.570 |
+| 2026-09-18 | rerank (cross-encoder/ms-marco-MiniLM-L6-v2@233902d, top 20) over dense: gemini-embedding-001, 768d, chunk 1000/150, k=5, corpus `26b03ce9a1c2c1d4` | 0.833 | 0.490 |
+| 2026-09-18 | rerank (cross-encoder/ms-marco-MiniLM-L6-v2@233902d, top 20) over hybrid (RRF k=60, 20 candidates each): gemini-embedding-001, 768d + BM25 (k1=1.2, b=0.75) over Postgres english lexemes, chunk 1000/150, k=5, corpus `26b03ce9a1c2c1d4` | 0.800 | 0.451 |
 
 Measured over fifty Python Enhancement Proposals (~1.3 MB, 1829 chunks), over the
 whole golden set — the harness refuses to report over a partial index or a corpus
@@ -39,7 +41,16 @@ What the rows say, read with the per-question flips rather than the aggregates:
   occurs in 524 of 1829 chunks.
 - **Fusing a weak ranker costs precision.** Hybrid over full-text keeps dense's
   recall and drops MRR to 0.439.
-- Five questions are missed by every configuration: q11, q14, q21, q23, q29.
+- **The reranker raised recall and lowered rank — the opposite of its target.**
+  Over dense it finds three passages dense ranked 6th–20th (q11, q17, q27) and
+  loses one (q08): recall 0.767 → 0.833, the highest in the table. But MRR falls
+  to 0.490: it demotes the right chunk below another chunk *of the same PEP* in
+  fourteen questions. Some of those are a real answer the single-span golden set
+  does not count (q04); others are keyword attraction (q09, q28). Over the hybrid
+  it does no better: 0.800 / 0.451.
+- Four questions are missed by every configuration: q14, q21, q23, q29. The
+  first two are in no first stage's top twenty, so no reranker could reach them;
+  the reranker lifted q11, the fifth F4 miss, and none of these.
 
 **Context recall @5** is the share of supporting passages that appear somewhere in
 the top five. **MRR @5** is how far down the list the first correct passage sat.
@@ -131,7 +142,10 @@ density, with no inverse document frequency — it is not BM25, and is not calle
 BM25. **BM25** is computed in memory from the lexemes that same column stores,
 so the two differ in the ranking function and nothing else. **Hybrid** fuses
 dense with either through reciprocal rank fusion, which combines rank positions
-rather than scores that live on incomparable scales.
+rather than scores that live on incomparable scales. **Rerank** (`--rerank`, on
+any mode) scores the first stage's top twenty with a local cross-encoder —
+`ms-marco-MiniLM-L6-v2`, run through ONNX Runtime at a pinned revision, no API
+call — and keeps its top k.
 
 **Eval** runs the golden set through the retriever and writes a frozen report to
 `evals/reports/` holding both metrics and the entire configuration that produced
@@ -190,9 +204,11 @@ failover, **F3** the pgvector baseline and its number.
 lexical ranker was Postgres full-text; measuring it exposed the missing IDF, so
 the slice added real BM25 over the same lexemes rather than tuning around the
 gap. The result is in the table: BM25 is far better than full-text, and fusing
-it with dense gains one question of recall and gives back some rank. What remains
-is a local reranker, now with a candidate list worth reordering and a clear
-target — the rank that fusion lost. **F5** resolves
+it with dense gains one question of recall and gives back some rank. The local
+reranker was then measured against that target — recovering the lost rank — with
+its model, revision and depth fixed first. It missed: it found more passages and
+ranked them worse, and that result is published as it came out. Dense stays the
+default. **F5** resolves
 citations to a character span in the source. **F6** turns the harness into a CI
 gate that fails the build on a quality regression. **F7** puts a frontend on it
 where clicking a citation highlights the span it came from.

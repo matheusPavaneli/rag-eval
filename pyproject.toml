@@ -9,6 +9,10 @@ dependencies = [
     "pydantic-settings>=2.7",
     "psycopg[binary]>=3.2",
     "httpx>=0.28",
+    "onnxruntime>=1.22",
+    "tokenizers>=0.21",
+    "huggingface-hub>=0.34",
+    "numpy>=2.1",
 ]
 
 [dependency-groups]
@@ -47,6 +51,10 @@ warn_unreachable = true
 plugins = ["pydantic.mypy"]
 files = ["src", "tests", "scripts"]
 mypy_path = "scripts"
+
+[[tool.mypy.overrides]]
+module = ["onnxruntime", "onnxruntime.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
