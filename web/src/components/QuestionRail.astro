@@ -1,0 +1,92 @@
+---
+import type { QuestionSummary } from '../lib/data';
+import QuestionList from './QuestionList.astro';
+
+interface Props {
+  questions: QuestionSummary[];
+  current: string;
+}
+
+const { questions, current } = Astro.props;
+---
+
+<aside class="rail" aria-label="Questions">
+  <details class="narrow">
+    <summary>
+      <span>Question <span class="current mono">{current}</span> of {questions.length}</span>
+      <span class="hint">All questions</span>
+    </summary>
+    <QuestionList questions={questions} current={current} />
+  </details>
+  <div class="wide">
+    <QuestionList questions={questions} current={current} />
+  </div>
+</aside>
+
+<style>
+  .rail {
+    min-block-size: 0;
+    border-inline-end: 1px solid var(--border);
+  }
+
+  .wide {
+    block-size: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .narrow {
+    display: none;
+  }
+
+  summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-block-size: var(--control);
+    padding: var(--space-2) var(--space-4);
+    cursor: pointer;
+    font-size: var(--text-xs);
+    color: var(--muted);
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  summary::after {
+    content: '';
+    inline-size: 0.45rem;
+    block-size: 0.45rem;
+    border-inline-end: 1.5px solid currentColor;
+    border-block-end: 1.5px solid currentColor;
+    transform: translateY(-2px) rotate(45deg);
+    transition: transform var(--duration-state) ease;
+  }
+  details[open] summary::after {
+    transform: translateY(2px) rotate(-135deg);
+  }
+  .current {
+    color: var(--ink);
+  }
+  .hint {
+    margin-inline-start: auto;
+    color: var(--act);
+  }
+
+  @media (max-width: 1199px) {
+    .rail {
+      border-inline-end: 0;
+      border-block-end: 1px solid var(--border);
+    }
+    .wide {
+      display: none;
+    }
+    .narrow {
+      display: block;
+    }
+    .narrow[open] :global(nav) {
+      max-block-size: 60dvh;
+      overflow-y: auto;
+    }
+  }
+</style>

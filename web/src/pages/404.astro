@@ -1,0 +1,37 @@
+---
+import Base from '../layouts/Base.astro';
+import { withBase } from '../lib/format';
+---
+
+<Base
+  title="Page not found · rageval"
+  description="This address does not match a question or a page of rageval's citation viewer."
+  current="none"
+>
+  <main id="main" class="missing">
+    <p class="mono code">404</p>
+    <h1>No page at this address</h1>
+    <p>
+      Questions live at <code>/q/q01/</code> through <code>/q/q30/</code>. Start from the
+      <a href={withBase('/')}>first question</a> or read the <a href={withBase('/numbers/')}>numbers</a>.
+    </p>
+  </main>
+</Base>
+
+<style>
+  .missing {
+    max-inline-size: 40rem;
+    padding: var(--space-12) var(--space-6);
+    display: grid;
+    gap: var(--space-4);
+  }
+  .code {
+    color: var(--muted);
+  }
+  h1 {
+    font-size: var(--text-xl);
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+</style>

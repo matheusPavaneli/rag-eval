@@ -1,0 +1,17 @@
+---
+import Viewer from '../components/Viewer.astro';
+import Base from '../layouts/Base.astro';
+import { questionPages, site } from '../lib/data';
+
+const [first] = questionPages();
+if (first === undefined) throw new Error('no question pages were exported');
+---
+
+<Base
+  title="rageval — citations, checked to the character"
+  description="Thirty questions about Python PEPs, each answer's quotes located to the exact characters of the source, and the retrieval numbers behind them."
+  current="answers"
+  app
+>
+  <Viewer page={first} questions={site().questions} lede />
+</Base>

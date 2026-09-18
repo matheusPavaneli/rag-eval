@@ -43,6 +43,7 @@ ignore = ["ANN401"]
 "src/rageval/retrieval/__main__.py" = ["T201"]
 "src/rageval/eval/__main__.py" = ["T201"]
 "src/rageval/vectors/__main__.py" = ["T201"]
+"src/rageval/site/__main__.py" = ["T201"]
 "scripts/**" = ["T201"]
 
 [tool.mypy]

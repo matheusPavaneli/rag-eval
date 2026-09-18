@@ -9,6 +9,11 @@ out. This one starts there: a golden set of thirty questions, ground truth
 recorded as character spans in the source documents, and a baseline published
 before anything is optimised.
 
+**See it:** [matheuspavaneli.github.io/rag-eval](https://matheuspavaneli.github.io/rag-eval/)
+— each of the thirty answers beside its source PEP. Select a citation and the
+characters it resolved to are highlighted, next to the span the golden set
+expected.
+
 ## The current numbers
 
 | Date | Configuration | Context recall @5 | MRR @5 |
@@ -296,6 +301,15 @@ uv run python -m rageval.retrieval --query "what is the maximum line length?" -k
 uv run python -m rageval.retrieval --query "what is an enumeration?" --mode bm25
 ```
 
+The page lives in `web/` (Astro, Node 24, pnpm) and is built from data the
+exporter writes; it ships no JavaScript:
+
+```bash
+uv run python -m rageval.site --out web/src/data
+pnpm --dir web install
+pnpm --dir web dev            # or: build, then test (checks every highlighted span)
+```
+
 ## Where this is going
 
 Built in slices, each one measured before the next begins: **F0** a reproducible
@@ -322,8 +336,12 @@ with no key. The chat cache then moved in front of failover so a recorded answer
 replays, and the answers joined the gate from a committed fixture, with every
 report pinned to its golden set. A correctness judge and abstention were left
 out on purpose: each needs live calls and would replace the published number.
-**F7** puts a frontend on it where clicking a citation highlights the span it
-came from.
+**F7** put a static page on it: each answer beside its source, a citation
+highlighting the exact characters it resolved to, cut in Python so the offsets
+stay code points, and checked in CI against the report for all 51 resolved
+citations ([ADR 0012](docs/adr/0012-citation-viewer.md)). Free-form questions
+against a live retriever were left out: they need a public endpoint holding a
+key.
 
 The ordering is deliberate, and it is the argument the project is making:
 measure the baseline before optimising anything, or you cannot prove the

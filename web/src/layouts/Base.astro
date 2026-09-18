@@ -1,0 +1,142 @@
+---
+import '@fontsource-variable/schibsted-grotesk/wght.css';
+import '@fontsource-variable/red-hat-mono/wght.css';
+import '../styles/global.css';
+import { site } from '../lib/data';
+import { withBase } from '../lib/format';
+
+interface Props {
+  title: string;
+  description: string;
+  current: 'answers' | 'numbers' | 'none';
+  canonical?: string;
+  app?: boolean;
+}
+
+const { title, description, current, canonical, app = false } = Astro.props;
+const payload = site();
+const hits = payload.questions.filter((question) => question.citation_hit).length;
+const repository = 'https://github.com/matheusPavaneli/rag-eval';
+const canonicalUrl = new URL(canonical ?? Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="icon" href={withBase('/favicon.svg')} type="image/svg+xml" />
+    <meta name="theme-color" content="#f1f8ff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#080c10" media="(prefers-color-scheme: dark)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+  </head>
+  <body class:list={{ app }}>
+    <a class="skip" href="#main">Skip to content</a>
+    <header class="masthead">
+      <a class="brand" href={withBase('/')}>
+        <span class="mono">rageval</span>
+        <span class="brand-role">citations, checked to the character</span>
+      </a>
+      <p class="tally">
+        <span><strong class="mono">{payload.resolved_count}/{payload.citation_count}</strong> quotes found verbatim</span>
+        <span><strong class="mono">{hits}/{payload.question_count}</strong> answers cite the expected passage</span>
+        <span><strong class="mono">0</strong> network calls to replay</span>
+      </p>
+      <nav aria-label="Site">
+        <ul class="nav">
+          <li>
+            <a href={withBase('/')} aria-current={current === 'answers' ? 'page' : undefined}>Answers</a>
+          </li>
+          <li>
+            <a href={withBase('/numbers/')} aria-current={current === 'numbers' ? 'page' : undefined}>Numbers</a>
+          </li>
+          <li><a href={repository}>Code</a></li>
+        </ul>
+      </nav>
+    </header>
+    <slot />
+  </body>
+</html>
+
+<style>
+  .masthead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3) var(--space-8);
+    padding: var(--space-3) var(--space-6);
+    border-block-end: 1px solid var(--border);
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    color: var(--ink);
+    text-decoration: none;
+    min-block-size: var(--control);
+    align-content: center;
+    flex-wrap: wrap;
+  }
+  .brand .mono {
+    font-size: var(--text-md);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .brand-role {
+    color: var(--muted);
+    font-size: var(--text-xs);
+  }
+
+  .tally {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-6);
+    color: var(--muted);
+    font-size: var(--text-xs);
+    margin-inline-start: auto;
+  }
+  .tally strong {
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .nav {
+    display: flex;
+    gap: var(--space-1);
+  }
+  .nav a {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--control);
+    padding-inline: var(--space-3);
+    color: var(--ink);
+    text-decoration: none;
+    border-radius: var(--radius-control);
+    border-block-end: 2px solid transparent;
+    transition: border-color var(--duration-state) ease;
+  }
+  .nav a:hover,
+  .nav a[aria-current='page'] {
+    border-block-end-color: var(--act);
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+  }
+
+  @media (max-width: 767px) {
+    .masthead {
+      padding-inline: var(--space-4);
+    }
+    .tally {
+      order: 3;
+      margin-inline-start: 0;
+      inline-size: 100%;
+    }
+  }
+</style>
