@@ -15,11 +15,13 @@ from rageval.providers.budget import Budget, BudgetedChatProvider, BudgetedEmbed
 from rageval.providers.cache import (
     CachedChatProvider,
     CachedEmbeddingProvider,
+    CacheOnlyChatProvider,
     CacheOnlyEmbeddingProvider,
     DiskCache,
 )
 from rageval.providers.gemini import NAME as GEMINI
 from rageval.providers.gemini import GeminiChatProvider, GeminiEmbeddingProvider
+from rageval.providers.groq import NAME as GROQ
 from rageval.providers.groq import GroqChatProvider
 
 CACHE_NAMESPACE = "providers"
@@ -70,41 +72,43 @@ def build_chat_provider(
 ) -> ChatProvider:
     spend = budget if budget is not None else build_budget(settings)
     cache = DiskCache(settings.cache_dir / CACHE_NAMESPACE)
+    # The cache key is the configured chain, not the keys that happen to be set,
+    # so a run with no key replays exactly what a keyed run recorded.
+    chain = (f"{GEMINI}/{settings.gemini_chat_model}", f"{GROQ}/{settings.groq_chat_model}")
     providers: list[ChatProvider] = []
 
     if settings.gemini_api_key is not None:
         providers.append(
-            CachedChatProvider(
-                BudgetedChatProvider(
-                    GeminiChatProvider(
-                        client,
-                        settings.gemini_api_key,
-                        settings.gemini_chat_model,
-                        settings.provider_timeout_seconds,
-                    ),
-                    spend,
+            BudgetedChatProvider(
+                GeminiChatProvider(
+                    client,
+                    settings.gemini_api_key,
+                    settings.gemini_chat_model,
+                    settings.provider_timeout_seconds,
                 ),
-                cache,
+                spend,
             )
         )
 
     if settings.groq_api_key is not None:
         providers.append(
-            CachedChatProvider(
-                BudgetedChatProvider(
-                    GroqChatProvider(
-                        client,
-                        settings.groq_api_key,
-                        settings.groq_chat_model,
-                        settings.provider_timeout_seconds,
-                    ),
-                    spend,
+            BudgetedChatProvider(
+                GroqChatProvider(
+                    client,
+                    settings.groq_api_key,
+                    settings.groq_chat_model,
+                    settings.provider_timeout_seconds,
                 ),
-                cache,
+                spend,
             )
         )
 
-    return FailoverChatProvider(providers)
+    inner: ChatProvider = (
+        FailoverChatProvider(providers)
+        if providers
+        else CacheOnlyChatProvider(settings.gemini_chat_model)
+    )
+    return CachedChatProvider(inner, cache, chain)
 
 
 def build_embedding_provider(
