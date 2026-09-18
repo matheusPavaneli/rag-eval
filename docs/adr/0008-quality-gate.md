@@ -126,10 +126,10 @@ would not have produced a run.
   from `chunks.embedding`. Every row written before this change has a vector,
   so nothing reads differently. It is reversible by hand: delete the rows with no
   vector, then set the constraint again.
-- **Not yet verified: that a Linux runner rebuilds `26b03ce9a1c2c1d4`.** The
-  repository forces LF line endings, which should make ingest byte-identical,
-  but the first CI run is the proof. If it builds another version, the gate
-  fails by refusal on every run and ingest reproducibility becomes the next
-  ticket.
+- **Ingest reproduces across operating systems.** The first CI run, on an
+  Ubuntu runner, rebuilt corpus `26b03ce9a1c2c1d4` with the same 1829 chunks as
+  the Windows machine that produced the baseline, and the gate reported no
+  drift with zero network calls. The repository forces LF line endings; that is
+  what makes the rebuild byte-identical.
 - Next, in order: a dense gate (an embedding path that serves from cache without
   a key), the chat cache in front of failover, then a gate on answers.
