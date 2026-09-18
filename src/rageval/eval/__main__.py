@@ -7,13 +7,26 @@ import httpx
 import psycopg
 from pydantic import ValidationError
 
+from rageval.answer.fixture import (
+    FixtureError,
+    RecordingChatProvider,
+    load_fixture,
+    write_fixture,
+)
 from rageval.config import get_settings
-from rageval.eval.answers import AnswerReport, run_answer_eval
+from rageval.eval.answers import AnswerDrift, AnswerReport, answer_drift, run_answer_eval
 from rageval.eval.golden import GoldenSetError, load_golden_set
 from rageval.eval.runner import Drift, EvalReport, ReportMismatchError, compare, drift, run_eval
 from rageval.ingest.documents import DocumentReadError, load_documents
-from rageval.providers import build_budget, build_chat_provider, build_embedding_provider
-from rageval.providers.base import ProviderError
+from rageval.providers import (
+    DiskCache,
+    build_budget,
+    build_chat_provider,
+    build_embedding_provider,
+    chat_chain,
+)
+from rageval.providers.base import ChatProvider, ProviderError
+from rageval.providers.failover import CACHE_NAMESPACE
 from rageval.retrieval.index import latest_corpus_version, load_manifest
 from rageval.retrieval.rerank import OnnxCrossEncoder
 from rageval.retrieval.search import (
@@ -61,7 +74,19 @@ def build_parser(golden_set_path: Path, top_k: int) -> argparse.ArgumentParser:
     parser.add_argument(
         "--fail-on-change",
         action="store_true",
-        help="exit 1 if any question's recall or rank, or an aggregate, differs from --baseline",
+        help="exit 1 if any question's result, or an aggregate, differs from --baseline",
+    )
+    parser.add_argument(
+        "--record-answers",
+        type=Path,
+        default=None,
+        help="write every answer this run received to a fixture file (with --answer)",
+    )
+    parser.add_argument(
+        "--replay-answers",
+        type=Path,
+        default=None,
+        help="load a recorded answer fixture into the chat cache first (with --answer)",
     )
     return parser
 
@@ -71,15 +96,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = build_parser(settings.golden_set_path, settings.retrieval_top_k)
     arguments = parser.parse_args(argv)
-    if arguments.answer and (arguments.rerank or arguments.baseline is not None):
-        parser.error("--answer runs over a first-stage retriever; drop --rerank and --baseline")
+    if arguments.answer and arguments.rerank:
+        parser.error("--answer runs over a first-stage retriever; drop --rerank")
+    if not arguments.answer and (arguments.record_answers or arguments.replay_answers):
+        parser.error("--record-answers and --replay-answers need --answer")
     if arguments.fail_on_change and arguments.baseline is None:
         parser.error("--fail-on-change needs --baseline")
 
-    baseline = None
+    baseline: EvalReport | AnswerReport | None = None
     if arguments.baseline is not None:
+        report_type = AnswerReport if arguments.answer else EvalReport
         try:
-            baseline = EvalReport.model_validate_json(
+            baseline = report_type.model_validate_json(
                 arguments.baseline.read_text(encoding="utf-8")
             )
         except (OSError, ValidationError) as error:
@@ -136,12 +164,21 @@ def main(argv: Sequence[str] | None = None) -> int:
 
             report: EvalReport | AnswerReport
             if arguments.answer:
+                if arguments.replay_answers is not None:
+                    loaded = load_fixture(
+                        DiskCache(settings.cache_dir / CACHE_NAMESPACE), arguments.replay_answers
+                    )
+                    print(f"loaded {loaded} recorded answers from {arguments.replay_answers}")
+                chat: ChatProvider = build_chat_provider(settings, client, budget)
+                recorder = RecordingChatProvider(chat)
                 report = run_answer_eval(
-                    questions,
-                    retriever,
-                    build_chat_provider(settings, client, budget),
-                    lambda: budget.state.calls,
+                    questions, retriever, recorder, chat_chain(settings), lambda: budget.state.calls
                 )
+                if arguments.record_answers is not None:
+                    written = write_fixture(
+                        arguments.record_answers, chat_chain(settings), recorder.calls
+                    )
+                    print(f"recorded {written} answers to {arguments.record_answers}")
             else:
                 report = run_eval(
                     questions,
@@ -150,7 +187,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                     settings.embedding_dimension,
                     lambda: budget.state.calls,
                 )
-    except (GoldenSetError, RetrievalError, ProviderError, DocumentReadError) as error:
+    except (
+        GoldenSetError,
+        RetrievalError,
+        ProviderError,
+        DocumentReadError,
+        FixtureError,
+    ) as error:
         print(f"eval failed: {error}", file=sys.stderr)
         return 1
     except psycopg.Error as error:
@@ -166,13 +209,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     if isinstance(report, AnswerReport):
         _print_answers(report)
         print(f"\nreport {path}\n\nREADME row:\n{report.table_row()}")
-        return 0
+        if not isinstance(baseline, AnswerReport):
+            return 0
+        try:
+            answers = answer_drift(baseline, report)
+        except ReportMismatchError as error:
+            print(f"\nnot comparable with {arguments.baseline}: {error}", file=sys.stderr)
+            return 1
+        status = _report_answer_drift(answers, arguments.baseline)
+        return status if arguments.fail_on_change else 0
 
     print(f"context recall @{report.k}  {report.context_recall_at_k:.3f}")
     print(f"MRR @{report.k}            {report.mrr_at_k:.3f}")
     print(f"\nreport {path}\n\nREADME row:\n{report.table_row()}")
 
-    if baseline is not None:
+    if isinstance(baseline, EvalReport):
         try:
             flips = compare(baseline, report)
             gate = drift(baseline, report) if arguments.fail_on_change else None
@@ -202,6 +253,19 @@ def _report_drift(gate: Drift, baseline: Path) -> int:
     recall, mrr = gate.context_recall_at_k, gate.mrr_at_k
     print(f"  context recall {recall[0]!r} -> {recall[1]!r}", file=sys.stderr)
     print(f"  MRR            {mrr[0]!r} -> {mrr[1]!r}", file=sys.stderr)
+    return 1
+
+
+def _report_answer_drift(gate: AnswerDrift, baseline: Path) -> int:
+    if not gate.any:
+        print(f"no drift from {baseline}")
+        return 0
+
+    print(f"\ndrift from {baseline}:", file=sys.stderr)
+    for question in gate.changed:
+        print(f"  {question.id}  {', '.join(question.fields)}", file=sys.stderr)
+    for aggregate in gate.aggregates:
+        print(f"  {aggregate.field} {aggregate.before!r} -> {aggregate.after!r}", file=sys.stderr)
     return 1
 
 

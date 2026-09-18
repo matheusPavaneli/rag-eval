@@ -33,6 +33,7 @@ from rageval.providers.failover import (
     build_budget,
     build_chat_provider,
     build_embedding_provider,
+    chat_chain,
 )
 
 __all__ = [
@@ -62,6 +63,7 @@ __all__ = [
     "build_budget",
     "build_chat_provider",
     "build_embedding_provider",
+    "chat_chain",
     "chat_digest",
     "embedding_digest",
 ]

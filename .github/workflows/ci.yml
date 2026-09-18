@@ -72,9 +72,11 @@ jobs:
     env:
       RAGEVAL_DATABASE_URL: postgresql://rageval:rageval@127.0.0.1:5433/rageval
       CORPUS: 26b03ce9a1c2c1d4
-      BASELINE: evals/reports/20260918T134848Z-26b03ce9a1c2c1d4-bm25.json
-      DENSE_BASELINE: evals/reports/20260918T134844Z-26b03ce9a1c2c1d4-dense.json
-      HYBRID_BASELINE: evals/reports/20260918T134853Z-26b03ce9a1c2c1d4-hybrid-bm25.json
+      BASELINE: evals/reports/20260918T175145Z-26b03ce9a1c2c1d4-bm25.json
+      DENSE_BASELINE: evals/reports/20260918T175148Z-26b03ce9a1c2c1d4-dense.json
+      HYBRID_BASELINE: evals/reports/20260918T175152Z-26b03ce9a1c2c1d4-hybrid-bm25.json
+      ANSWER_BASELINE: evals/reports/20260918T175155Z-26b03ce9a1c2c1d4-answer-dense.json
+      ANSWERS: evals/answers/26b03ce9a1c2c1d4-682ec1326b2f.jsonl
       VECTORS_TAG: vectors-26b03ce9a1c2c1d4
       VECTORS_FILE: embeddings-26b03ce9a1c2c1d4.jsonl.gz
       VECTORS_SHA256: 49f22cf2bc87a061005adce96737f5d22e7803bca063cbeba1b362bbde4bcc82
@@ -102,3 +104,6 @@ jobs:
       - run: >-
           uv run python -m rageval.eval --mode hybrid --fuse-with bm25 --corpus-version "$CORPUS"
           --baseline "$HYBRID_BASELINE" --fail-on-change
+      - run: >-
+          uv run python -m rageval.eval --answer --corpus-version "$CORPUS"
+          --replay-answers "$ANSWERS" --baseline "$ANSWER_BASELINE" --fail-on-change

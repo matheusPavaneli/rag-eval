@@ -7,8 +7,9 @@ from pydantic import BaseModel, ConfigDict
 from rageval import __version__
 from rageval.answer.citations import ResolutionResult, ResolvedCitation
 from rageval.answer.generate import PROMPT_VERSION, answer_question
-from rageval.eval.golden import GoldenQuestion
+from rageval.eval.golden import GoldenQuestion, golden_digest
 from rageval.eval.metrics import citation_hit, context_recall, mean
+from rageval.eval.runner import ReportMismatchError, check_golden_set
 from rageval.providers.base import ChatProvider
 from rageval.retrieval.search import DenseConfig, QuestionRetriever, RetrievalConfig
 
@@ -35,9 +36,10 @@ class AnswerReport(BaseModel):
     ran_at: datetime
     rageval_version: str
     corpus_version: str
+    golden_set_digest: str | None = None
     retrieval: RetrievalConfig = DenseConfig()
     embedding_model: str | None
-    chat_model: str
+    chat_chain: tuple[str, ...] = ()
     prompt_version: str
     k: int
     question_count: int
@@ -74,6 +76,7 @@ def run_answer_eval(
     questions: Sequence[GoldenQuestion],
     retriever: QuestionRetriever,
     chat: ChatProvider,
+    chat_chain: Sequence[str],
     network_calls: Callable[[], int] = lambda: 0,
 ) -> AnswerReport:
     k = retriever.top_k
@@ -111,9 +114,10 @@ def run_answer_eval(
         ran_at=datetime.now(UTC),
         rageval_version=__version__,
         corpus_version=retriever.corpus_version,
+        golden_set_digest=golden_digest(questions),
         retrieval=retriever.config,
         embedding_model=retriever.embedding_model,
-        chat_model=chat.model,
+        chat_chain=tuple(chat_chain),
         prompt_version=PROMPT_VERSION,
         k=k,
         question_count=len(results),
@@ -131,6 +135,94 @@ def run_answer_eval(
         network_calls=network_calls(),
         results=tuple(results),
     )
+
+
+# What the pipeline derives from one recorded answer. A change in any of them is drift.
+ANSWER_FIELDS = (
+    "answer",
+    "parse_error",
+    "raw_response",
+    "citations",
+    "cited_chunk_chars",
+    "citation_hit",
+    "context_recall",
+    "provider",
+    "model",
+)
+AGGREGATE_FIELDS = (
+    "retrieved_count",
+    "citation_hit_rate",
+    "citation_hit_rate_retrieved",
+    "citation_count",
+    "resolution_rate",
+    "mean_citation_chars",
+    "mean_cited_chunk_chars",
+    "parse_failures",
+    "providers",
+)
+
+
+class AnswerQuestionDrift(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    fields: tuple[str, ...]
+
+
+class AggregateDrift(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    field: str
+    before: object
+    after: object
+
+
+class AnswerDrift(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    changed: tuple[AnswerQuestionDrift, ...]
+    aggregates: tuple[AggregateDrift, ...]
+
+    @property
+    def any(self) -> bool:
+        return bool(self.changed or self.aggregates)
+
+
+def answer_drift(baseline: AnswerReport, candidate: AnswerReport) -> AnswerDrift:
+    for field in ("corpus_version", "k", "retrieval", "prompt_version", "chat_chain"):
+        before, after = getattr(baseline, field), getattr(candidate, field)
+        if before != after:
+            raise ReportMismatchError(f"{field} differs: baseline {before}, candidate {after}")
+
+    before = {result.id: result for result in baseline.results}
+    after = {result.id: result for result in candidate.results}
+    if before.keys() != after.keys():
+        missing = sorted(before.keys() - after.keys())
+        extra = sorted(after.keys() - before.keys())
+        raise ReportMismatchError(
+            f"question set differs: missing {missing or 'none'}, extra {extra or 'none'}"
+        )
+    check_golden_set(baseline.golden_set_digest, candidate.golden_set_digest)
+
+    changed = tuple(
+        AnswerQuestionDrift(id=question, fields=fields)
+        for question in sorted(after)
+        if (
+            fields := tuple(
+                field
+                for field in ANSWER_FIELDS
+                if getattr(before[question], field) != getattr(after[question], field)
+            )
+        )
+    )
+    aggregates = tuple(
+        AggregateDrift(
+            field=field, before=getattr(baseline, field), after=getattr(candidate, field)
+        )
+        for field in AGGREGATE_FIELDS
+        if getattr(baseline, field) != getattr(candidate, field)
+    )
+    return AnswerDrift(changed=changed, aggregates=aggregates)
 
 
 def _rate(results: Sequence[AnswerResult]) -> float:

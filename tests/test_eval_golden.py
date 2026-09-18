@@ -4,7 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from rageval.eval.golden import GoldenSetError, load_golden_set
+from rageval.eval.golden import (
+    GoldenQuestion,
+    GoldenSetError,
+    Support,
+    golden_digest,
+    load_golden_set,
+)
 from rageval.ingest.documents import Document
 
 DOCUMENTS = [
@@ -96,3 +102,17 @@ def test_an_empty_file_is_refused_rather_than_measuring_nothing(tmp_path: Path) 
 def test_a_missing_file_names_the_path(tmp_path: Path) -> None:
     with pytest.raises(GoldenSetError, match="cannot read the golden set"):
         load_golden_set(tmp_path / "absent.jsonl", DOCUMENTS)
+
+
+def _golden(start: int) -> GoldenQuestion:
+    return GoldenQuestion(
+        id="q01",
+        question="how long is a line?",
+        answer="79",
+        supports=(Support(source_path="a.md", start_char=start, end_char=start + 40),),
+    )
+
+
+def test_the_golden_digest_is_stable_and_moves_with_a_one_character_span_shift() -> None:
+    assert golden_digest([_golden(100)]) == golden_digest([_golden(100)])
+    assert golden_digest([_golden(100)]) != golden_digest([_golden(101)])

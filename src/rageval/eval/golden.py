@@ -1,3 +1,4 @@
+import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -33,6 +34,16 @@ class GoldenQuestion(BaseModel):
     question: str
     answer: str
     supports: tuple[Support, ...] = Field(min_length=1)
+
+
+def golden_digest(questions: Sequence[GoldenQuestion]) -> str:
+    """Digest of the parsed questions, so the same set hashes alike on any line ending."""
+    canonical = json.dumps(
+        [question.model_dump(mode="json") for question in questions],
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def load_golden_set(path: Path, documents: Sequence[Document]) -> tuple[GoldenQuestion, ...]:

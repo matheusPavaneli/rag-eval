@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from pydantic import BaseModel, ConfigDict
 
 from rageval import __version__
-from rageval.eval.golden import GoldenQuestion
+from rageval.eval.golden import GoldenQuestion, golden_digest
 from rageval.eval.metrics import context_recall, mean, reciprocal_rank
 from rageval.ingest.chunking import ChunkConfig
 from rageval.retrieval.search import (
@@ -38,6 +38,7 @@ class EvalReport(BaseModel):
     ran_at: datetime
     rageval_version: str
     corpus_version: str
+    golden_set_digest: str | None = None
     retrieval: RetrievalConfig = DenseConfig()
     embedding_model: str | None
     dimension: int
@@ -116,12 +117,22 @@ def compare(baseline: EvalReport, candidate: EvalReport) -> Flips:
         raise ReportMismatchError(
             f"question set differs: missing {missing or 'none'}, extra {extra or 'none'}"
         )
+    check_golden_set(baseline.golden_set_digest, candidate.golden_set_digest)
 
     hit_before = {result.id for result in baseline.results if result.context_recall > 0}
     hit_after = {result.id for result in candidate.results if result.context_recall > 0}
     return Flips(
         gained=tuple(sorted(hit_after - hit_before)), lost=tuple(sorted(hit_before - hit_after))
     )
+
+
+def check_golden_set(baseline: str | None, candidate: str | None) -> None:
+    if baseline != candidate:
+        raise ReportMismatchError(
+            f"golden set differs: baseline {baseline or 'records none'}, candidate "
+            f"{candidate or 'records none'}; re-cut the baseline if the golden set changed "
+            "on purpose"
+        )
 
 
 class QuestionDrift(BaseModel):
@@ -200,6 +211,7 @@ def run_eval(
         ran_at=datetime.now(UTC),
         rageval_version=__version__,
         corpus_version=retriever.corpus_version,
+        golden_set_digest=golden_digest(questions),
         retrieval=retriever.config,
         embedding_model=retriever.embedding_model,
         dimension=dimension,
