@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     budget_max_input_chars: int = 4_000_000
 
     retrieval_top_k: int = 5
+    retrieval_candidates: int = 20
+    rrf_k: int = 60
+    bm25_k1: float = 1.2
+    bm25_b: float = 0.75
     embedding_batch_size: int = 64
     embedding_max_attempts: int = 8
     embedding_backoff_seconds: float = 20.0

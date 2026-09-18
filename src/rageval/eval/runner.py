@@ -7,7 +7,18 @@ from rageval import __version__
 from rageval.eval.golden import GoldenQuestion
 from rageval.eval.metrics import context_recall, mean, reciprocal_rank
 from rageval.ingest.chunking import ChunkConfig
-from rageval.retrieval.search import QuestionRetriever
+from rageval.retrieval.search import (
+    Bm25Config,
+    DenseConfig,
+    FullTextConfig,
+    HybridConfig,
+    QuestionRetriever,
+    RetrievalConfig,
+)
+
+
+class ReportMismatchError(Exception):
+    pass
 
 
 class QuestionResult(BaseModel):
@@ -26,7 +37,8 @@ class EvalReport(BaseModel):
     ran_at: datetime
     rageval_version: str
     corpus_version: str
-    embedding_model: str
+    retrieval: RetrievalConfig = DenseConfig()
+    embedding_model: str | None
     dimension: int
     chunk_size: int
     overlap: int
@@ -40,10 +52,60 @@ class EvalReport(BaseModel):
     def table_row(self) -> str:
         return (
             f"| {self.ran_at.date().isoformat()} "
-            f"| {self.embedding_model}, {self.dimension}d, chunk {self.chunk_size}/{self.overlap}, "
+            f"| {self._retrieval_label()}, chunk {self.chunk_size}/{self.overlap}, "
             f"k={self.k}, corpus `{self.corpus_version}` "
             f"| {self.context_recall_at_k:.3f} | {self.mrr_at_k:.3f} |"
         )
+
+    def _retrieval_label(self) -> str:
+        dense = f"{self.embedding_model}, {self.dimension}d"
+        match self.retrieval:
+            case DenseConfig():
+                return f"dense: {dense}"
+            case FullTextConfig() | Bm25Config():
+                return f"{self.retrieval.mode}: {_lexical_label(self.retrieval)}"
+            case HybridConfig(rrf_k=rrf_k, candidates=candidates, lexical=lexical):
+                return (
+                    f"hybrid (RRF k={rrf_k}, {candidates} candidates each): "
+                    f"{dense} + {_lexical_label(lexical)}"
+                )
+
+
+def _lexical_label(config: FullTextConfig | Bm25Config) -> str:
+    match config:
+        case FullTextConfig():
+            return "Postgres full-text (ts_rank_cd, english)"
+        case Bm25Config(k1=k1, b=b):
+            return f"BM25 (k1={k1}, b={b}) over Postgres english lexemes"
+
+
+class Flips(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    gained: tuple[str, ...]
+    lost: tuple[str, ...]
+
+
+def compare(baseline: EvalReport, candidate: EvalReport) -> Flips:
+    for field in ("corpus_version", "k"):
+        before, after = getattr(baseline, field), getattr(candidate, field)
+        if before != after:
+            raise ReportMismatchError(f"{field} differs: baseline {before}, candidate {after}")
+
+    before_ids = {result.id for result in baseline.results}
+    after_ids = {result.id for result in candidate.results}
+    if before_ids != after_ids:
+        missing = sorted(before_ids - after_ids)
+        extra = sorted(after_ids - before_ids)
+        raise ReportMismatchError(
+            f"question set differs: missing {missing or 'none'}, extra {extra or 'none'}"
+        )
+
+    hit_before = {result.id for result in baseline.results if result.context_recall > 0}
+    hit_after = {result.id for result in candidate.results if result.context_recall > 0}
+    return Flips(
+        gained=tuple(sorted(hit_after - hit_before)), lost=tuple(sorted(hit_before - hit_after))
+    )
 
 
 def run_eval(
@@ -72,6 +134,7 @@ def run_eval(
         ran_at=datetime.now(UTC),
         rageval_version=__version__,
         corpus_version=retriever.corpus_version,
+        retrieval=retriever.config,
         embedding_model=retriever.embedding_model,
         dimension=dimension,
         chunk_size=chunk_config.chunk_size,

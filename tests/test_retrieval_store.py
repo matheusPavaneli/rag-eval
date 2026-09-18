@@ -142,3 +142,89 @@ def test_a_chunk_without_its_vector_is_refused(store: VectorStore) -> None:
 
     with pytest.raises(RetrievalError, match="2 chunks were given 1 vectors"):
         store.upsert(CORPUS, chunks, [[1.0, 0.0, 0.0]], SOURCE_PATHS)
+
+
+def test_ensure_schema_adds_the_lexical_column_to_a_table_built_before_it(
+    database: psycopg.Connection[tuple[object, ...]], store: VectorStore
+) -> None:
+    store.upsert(CORPUS, [_chunk(0, "structural subtyping")], [[1.0, 0.0, 0.0]], SOURCE_PATHS)
+    with database.cursor() as cursor:
+        cursor.execute(sql.SQL("ALTER TABLE {} DROP COLUMN lexical").format(sql.Identifier(TABLE)))
+    database.commit()
+
+    store.ensure_schema()
+    store.ensure_schema()
+
+    assert [chunk.text for chunk in store.lexical_search(CORPUS, "subtyping", limit=5)] == [
+        "structural subtyping"
+    ]
+
+
+def test_lexical_search_ranks_the_chunk_with_the_query_terms_first(store: VectorStore) -> None:
+    store.upsert(
+        CORPUS,
+        [
+            _chunk(0, "a protocol class defines structural subtyping for a protocol"),
+            _chunk(1, "an enumeration is a set of named constants"),
+            _chunk(2, "the protocol is described elsewhere"),
+        ],
+        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        SOURCE_PATHS,
+    )
+
+    result = store.lexical_search(CORPUS, "What is a protocol class?", limit=5)
+
+    assert [chunk.ordinal for chunk in result] == [0, 2]
+    assert result[0].score > result[1].score
+
+
+def test_lexical_search_matches_when_only_some_of_the_terms_appear(store: VectorStore) -> None:
+    store.upsert(CORPUS, [_chunk(0, "context variables")], [[1.0, 0.0, 0.0]], SOURCE_PATHS)
+
+    result = store.lexical_search(CORPUS, "what problem do context variables solve", limit=5)
+
+    assert [chunk.text for chunk in result] == ["context variables"]
+
+
+def test_lexical_search_finds_nothing_for_a_query_with_no_matching_term(
+    store: VectorStore,
+) -> None:
+    store.upsert(CORPUS, [_chunk(0, "an enumeration")], [[1.0, 0.0, 0.0]], SOURCE_PATHS)
+
+    assert store.lexical_search(CORPUS, "asynchronous generators", limit=5) == ()
+    assert store.lexical_search(CORPUS, "what is the", limit=5) == ()
+
+
+def test_lexical_search_does_not_search_another_corpus_version(store: VectorStore) -> None:
+    store.upsert(CORPUS, [_chunk(0, "an enumeration")], [[1.0, 0.0, 0.0]], SOURCE_PATHS)
+
+    assert store.lexical_search("another-corpus", "enumeration", limit=5) == ()
+
+
+def test_chunk_terms_are_stemmed_counted_and_free_of_stopwords(store: VectorStore) -> None:
+    store.upsert(
+        CORPUS,
+        [_chunk(0, "The classes define a class of protocols"), _chunk(1, "the of")],
+        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+        SOURCE_PATHS,
+    )
+
+    found = {chunk.chunk_id: chunk for chunk in store.chunk_terms(CORPUS)}
+
+    assert found["chunk-0"].terms == {"class": 2, "defin": 1, "protocol": 1}
+    assert found["chunk-0"].source_path == "a.md"
+    assert found["chunk-1"].terms == {}
+
+
+def test_chunk_terms_read_only_the_requested_corpus_version(store: VectorStore) -> None:
+    store.upsert(CORPUS, [_chunk(0, "an enumeration")], [[1.0, 0.0, 0.0]], SOURCE_PATHS)
+
+    assert store.chunk_terms("another-corpus") == ()
+
+
+def test_a_question_is_normalised_to_the_lexemes_its_chunk_stores(store: VectorStore) -> None:
+    store.upsert(CORPUS, [_chunk(0, "Protocol classes")], [[1.0, 0.0, 0.0]], SOURCE_PATHS)
+
+    stored = set(store.chunk_terms(CORPUS)[0].terms)
+
+    assert set(store.query_terms("What is a protocol class?")) == stored == {"class", "protocol"}
