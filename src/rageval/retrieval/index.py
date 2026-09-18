@@ -42,10 +42,7 @@ def index_corpus(
     if max_attempts < 1:
         raise RetrievalError(f"max attempts must be at least 1, got {max_attempts}")
 
-    root = corpus_dir / corpus_version
-    chunks = [Chunk.model_validate(record) for record in _read(root / "chunks.jsonl")]
-    documents = [Document.model_validate(record) for record in _read(root / "documents.jsonl")]
-    source_paths = {document.id: document.source_path for document in documents}
+    chunks, source_paths = _load(corpus_dir / corpus_version)
 
     store.ensure_schema()
 
@@ -70,6 +67,18 @@ def index_corpus(
         embedding_model=provider.model,
         dimension=provider.dimension,
     )
+
+
+def index_text(corpus_dir: Path, corpus_version: str, store: ChunkStore) -> int:
+    chunks, source_paths = _load(corpus_dir / corpus_version)
+    store.ensure_schema()
+    return store.insert_text(corpus_version, chunks, source_paths)
+
+
+def _load(root: Path) -> tuple[list[Chunk], dict[str, str]]:
+    chunks = [Chunk.model_validate(record) for record in _read(root / "chunks.jsonl")]
+    documents = [Document.model_validate(record) for record in _read(root / "documents.jsonl")]
+    return chunks, {document.id: document.source_path for document in documents}
 
 
 def _embed(

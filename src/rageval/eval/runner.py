@@ -124,6 +124,56 @@ def compare(baseline: EvalReport, candidate: EvalReport) -> Flips:
     )
 
 
+class QuestionDrift(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    context_recall: tuple[float, float]
+    reciprocal_rank: tuple[float, float]
+
+
+class Drift(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    changed: tuple[QuestionDrift, ...]
+    context_recall_at_k: tuple[float, float]
+    mrr_at_k: tuple[float, float]
+
+    @property
+    def any(self) -> bool:
+        return (
+            bool(self.changed)
+            or self.context_recall_at_k[0] != self.context_recall_at_k[1]
+            or self.mrr_at_k[0] != self.mrr_at_k[1]
+        )
+
+
+def drift(baseline: EvalReport, candidate: EvalReport) -> Drift:
+    compare(baseline, candidate)
+    if baseline.retrieval != candidate.retrieval:
+        raise ReportMismatchError(
+            f"retrieval config differs: baseline {baseline.retrieval.model_dump()}, "
+            f"candidate {candidate.retrieval.model_dump()}"
+        )
+
+    before = {result.id: result for result in baseline.results}
+    changed = tuple(
+        QuestionDrift(
+            id=after.id,
+            context_recall=(before[after.id].context_recall, after.context_recall),
+            reciprocal_rank=(before[after.id].reciprocal_rank, after.reciprocal_rank),
+        )
+        for after in sorted(candidate.results, key=lambda result: result.id)
+        if (before[after.id].context_recall, before[after.id].reciprocal_rank)
+        != (after.context_recall, after.reciprocal_rank)
+    )
+    return Drift(
+        changed=changed,
+        context_recall_at_k=(baseline.context_recall_at_k, candidate.context_recall_at_k),
+        mrr_at_k=(baseline.mrr_at_k, candidate.mrr_at_k),
+    )
+
+
 def run_eval(
     questions: Sequence[GoldenQuestion],
     retriever: QuestionRetriever,

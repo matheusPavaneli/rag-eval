@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from rageval.config import get_settings
 from rageval.eval.answers import AnswerReport, run_answer_eval
 from rageval.eval.golden import GoldenSetError, load_golden_set
-from rageval.eval.runner import EvalReport, ReportMismatchError, compare, run_eval
+from rageval.eval.runner import Drift, EvalReport, ReportMismatchError, compare, drift, run_eval
 from rageval.ingest.documents import DocumentReadError, load_documents
 from rageval.providers import build_budget, build_chat_provider, build_embedding_provider
 from rageval.providers.base import ProviderError
@@ -58,6 +58,11 @@ def build_parser(golden_set_path: Path, top_k: int) -> argparse.ArgumentParser:
     parser.add_argument(
         "--baseline", type=Path, default=None, help="report to list flipped questions against"
     )
+    parser.add_argument(
+        "--fail-on-change",
+        action="store_true",
+        help="exit 1 if any question's recall or rank, or an aggregate, differs from --baseline",
+    )
     return parser
 
 
@@ -68,6 +73,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     if arguments.answer and (arguments.rerank or arguments.baseline is not None):
         parser.error("--answer runs over a first-stage retriever; drop --rerank and --baseline")
+    if arguments.fail_on_change and arguments.baseline is None:
+        parser.error("--fail-on-change needs --baseline")
 
     baseline = None
     if arguments.baseline is not None:
@@ -98,7 +105,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             store = VectorStore(connection, settings.embedding_dimension)
             store.ensure_schema()
 
-            indexed = store.count(version)
+            indexed = store.count(version, embedded=arguments.mode not in LEXICAL_MODES)
             if indexed != manifest.chunk_count:
                 print(
                     f"corpus {version} has {manifest.chunk_count} chunks but "
@@ -168,12 +175,34 @@ def main(argv: Sequence[str] | None = None) -> int:
     if baseline is not None:
         try:
             flips = compare(baseline, report)
+            gate = drift(baseline, report) if arguments.fail_on_change else None
         except ReportMismatchError as error:
             print(f"\nnot comparable with {arguments.baseline}: {error}", file=sys.stderr)
             return 1
         print(f"\ngained vs baseline  {', '.join(flips.gained) or 'none'}")
         print(f"lost vs baseline    {', '.join(flips.lost) or 'none'}")
+        if gate is not None:
+            return _report_drift(gate, arguments.baseline)
     return 0
+
+
+def _report_drift(gate: Drift, baseline: Path) -> int:
+    if not gate.any:
+        print(f"no drift from {baseline}")
+        return 0
+
+    print(f"\ndrift from {baseline}:", file=sys.stderr)
+    for question in gate.changed:
+        recall, rank = question.context_recall, question.reciprocal_rank
+        print(
+            f"  {question.id}  recall {recall[0]:.3f} -> {recall[1]:.3f}, "
+            f"rr {rank[0]:.3f} -> {rank[1]:.3f}",
+            file=sys.stderr,
+        )
+    recall, mrr = gate.context_recall_at_k, gate.mrr_at_k
+    print(f"  context recall {recall[0]!r} -> {recall[1]!r}", file=sys.stderr)
+    print(f"  MRR            {mrr[0]!r} -> {mrr[1]!r}", file=sys.stderr)
+    return 1
 
 
 def _print_answers(report: AnswerReport) -> None:

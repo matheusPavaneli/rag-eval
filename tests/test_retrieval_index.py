@@ -15,6 +15,7 @@ from rageval.providers.base import (
 from rageval.retrieval.index import (
     CorpusNotFoundError,
     index_corpus,
+    index_text,
     latest_corpus_version,
     load_manifest,
 )
@@ -234,3 +235,22 @@ def test_the_backoff_delay_is_capped(tmp_path: Path) -> None:
     )
 
     assert slept == [10.0, 20.0, 25.0, 25.0]
+
+
+def test_indexing_text_stores_every_chunk_with_its_source_path_and_embeds_nothing(
+    tmp_path: Path,
+) -> None:
+    _corpus(tmp_path, "v1", chunk_count=10)
+    store = FakeStore()
+
+    stored = index_text(tmp_path, "v1", store)
+
+    assert stored == 10
+    assert store.schema_calls == 1
+    assert store.upserts == []
+    [(version, chunks, source_paths)] = store.text_inserts
+    assert version == "v1"
+    assert [chunk.id for chunk in chunks] == [f"chunk-{ordinal}" for ordinal in range(10)]
+    assert source_paths == {"doc-1": "a.md"}
+    assert store.count("v1") == 10
+    assert store.count("v1", embedded=True) == 0

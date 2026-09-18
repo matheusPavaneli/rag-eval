@@ -101,6 +101,29 @@ uv run python -m rageval.eval --answer
 uv run python -m rageval.retrieval --query "What is the maximum line length PEP 8 asks for?" --answer
 ```
 
+### What CI protects
+
+Every pull request and every push to `main` rebuilds the corpus from
+`documents/`, stores the chunk text without embedding it, runs the BM25 eval and
+compares it with the
+frozen BM25 report. Any difference fails the build: a question whose recall or
+rank moved in either direction, either aggregate, or a report from another
+configuration. No key and no network call are involved.
+
+A green check covers ingest, chunking, the lexeme config, the golden-set loader,
+the metrics and BM25. It does **not** cover the dense numbers, fusion, the
+reranker or the answers — those still need an embedding or a chat model, and
+neither can run in CI reproducibly yet. Of four regressions planted to test the
+gate, it caught the two the unit suite missed; one golden-span edit smaller than
+a chunk got past both. Details in [ADR 0008](docs/adr/0008-quality-gate.md).
+
+```bash
+uv run python -m rageval.ingest documents/
+uv run python -m rageval.retrieval --corpus-version 26b03ce9a1c2c1d4 --lexical-only
+uv run python -m rageval.eval --mode bm25 --corpus-version 26b03ce9a1c2c1d4 \
+  --baseline evals/reports/20260918T134848Z-26b03ce9a1c2c1d4-bm25.json --fail-on-change
+```
+
 ## What is measured, and what that is worth
 
 Ground truth is a **character span in a source document**, not the id of a chunk.
@@ -252,10 +275,11 @@ default.
 **F5** added the first answer, with citations the model quotes and code locates:
 almost every quote resolved, and about half the answers cite the exact golden
 span — a lower bound, since the golden set records one span where the source
-often has several. **F6** turns the harness into a CI gate that fails the build
-on a quality regression; it first needs the chat cache moved in front of
-failover so a generated answer reproduces, and a judge for answer correctness.
-**F7** puts a frontend on it where clicking a citation highlights the span it
+often has several. **F6** made the harness a CI gate, starting where the number
+is deterministic without a key: BM25, compared per question with zero tolerance.
+Gating dense retrieval needs an embedding path that serves from cache without a
+key; gating answers needs the chat cache moved in front of failover and a judge
+for answer correctness. **F7** puts a frontend on it where clicking a citation highlights the span it
 came from.
 
 The ordering is deliberate, and it is the argument the project is making:

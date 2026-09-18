@@ -61,6 +61,10 @@ class ChunkStore(Protocol):
         source_paths: dict[str, str],
     ) -> int: ...
 
+    def insert_text(
+        self, corpus_version: str, chunks: Sequence[Chunk], source_paths: dict[str, str]
+    ) -> int: ...
+
     def search(
         self, corpus_version: str, vector: Sequence[float], limit: int
     ) -> tuple[ScoredChunk, ...]: ...
@@ -73,7 +77,7 @@ class ChunkStore(Protocol):
 
     def query_terms(self, question: str) -> tuple[str, ...]: ...
 
-    def count(self, corpus_version: str) -> int: ...
+    def count(self, corpus_version: str, embedded: bool = False) -> int: ...
 
 
 class VectorStore:
@@ -107,11 +111,16 @@ class VectorStore:
                         text           text    NOT NULL,
                         start_char     integer NOT NULL,
                         end_char       integer NOT NULL,
-                        embedding      vector({dimension}) NOT NULL,
+                        embedding      vector({dimension}),
                         PRIMARY KEY (corpus_version, chunk_id)
                     )
                     """
                 ).format(table=self._table, dimension=sql.Literal(self._dimension))
+            )
+            cursor.execute(
+                sql.SQL("ALTER TABLE {table} ALTER COLUMN embedding DROP NOT NULL").format(
+                    table=self._table
+                )
             )
             cursor.execute(
                 sql.SQL(
@@ -179,6 +188,38 @@ class VectorStore:
         self._connection.commit()
         return len(rows)
 
+    def insert_text(
+        self, corpus_version: str, chunks: Sequence[Chunk], source_paths: dict[str, str]
+    ) -> int:
+        rows = [
+            (
+                corpus_version,
+                chunk.id,
+                chunk.document_id,
+                source_paths[chunk.document_id],
+                chunk.ordinal,
+                chunk.text,
+                chunk.start_char,
+                chunk.end_char,
+            )
+            for chunk in chunks
+        ]
+
+        with self._connection.cursor() as cursor:
+            cursor.executemany(
+                sql.SQL(
+                    """
+                    INSERT INTO {table} (corpus_version, chunk_id, document_id, source_path,
+                                         ordinal, text, start_char, end_char)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (corpus_version, chunk_id) DO NOTHING
+                    """
+                ).format(table=self._table),
+                rows,
+            )
+        self._connection.commit()
+        return len(rows)
+
     def search(
         self, corpus_version: str, vector: Sequence[float], limit: int
     ) -> tuple[ScoredChunk, ...]:
@@ -189,7 +230,7 @@ class VectorStore:
                     SELECT chunk_id, document_id, source_path, ordinal, text,
                            start_char, end_char, 1 - (embedding <=> %s::vector) AS score
                     FROM {table}
-                    WHERE corpus_version = %s
+                    WHERE corpus_version = %s AND embedding IS NOT NULL
                     ORDER BY embedding <=> %s::vector
                     LIMIT %s
                     """
@@ -276,13 +317,14 @@ class VectorStore:
             rows = cursor.fetchall()
         return tuple(str(row[0]) for row in rows)
 
-    def count(self, corpus_version: str) -> int:
+    def count(self, corpus_version: str, embedded: bool = False) -> int:
         with self._connection.cursor() as cursor:
             cursor.execute(
-                sql.SQL("SELECT count(*) FROM {table} WHERE corpus_version = %s").format(
-                    table=self._table
-                ),
-                (corpus_version,),
+                sql.SQL(
+                    "SELECT count(*) FROM {table} "
+                    "WHERE corpus_version = %s AND (%s OR embedding IS NOT NULL)"
+                ).format(table=self._table),
+                (corpus_version, not embedded),
             )
             row = cursor.fetchone()
         return 0 if row is None else int(row[0])  # type: ignore[call-overload]

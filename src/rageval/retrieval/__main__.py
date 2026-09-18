@@ -10,7 +10,7 @@ from rageval.answer.generate import answer_question
 from rageval.config import get_settings
 from rageval.providers import build_budget, build_chat_provider, build_embedding_provider
 from rageval.providers.base import ProviderError
-from rageval.retrieval.index import index_corpus, latest_corpus_version
+from rageval.retrieval.index import index_corpus, index_text, latest_corpus_version
 from rageval.retrieval.search import LEXICAL_MODES, MODES, Bm25Config, build_retriever
 from rageval.retrieval.store import RetrievalError, VectorStore
 
@@ -38,6 +38,11 @@ def build_parser(top_k: int) -> argparse.ArgumentParser:
         action="store_true",
         help="with --query, answer from the retrieved chunks and show each cited span",
     )
+    parser.add_argument(
+        "--lexical-only",
+        action="store_true",
+        help="index the chunk text without embedding it: enough for fulltext and bm25, no key",
+    )
     return parser
 
 
@@ -48,6 +53,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     if arguments.answer and arguments.query is None:
         parser.error("--answer needs --query")
+    if arguments.lexical_only and arguments.query is not None:
+        parser.error("--lexical-only indexes; drop --query")
 
     try:
         version = arguments.corpus_version or latest_corpus_version(settings.corpus_dir)
@@ -58,6 +65,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             psycopg.connect(settings.database_url, connect_timeout=10) as connection,
         ):
             store = VectorStore(connection, settings.embedding_dimension)
+
+            if arguments.lexical_only:
+                stored = index_text(settings.corpus_dir, version, store)
+                print(
+                    f"stored the text of {stored} chunks of corpus {version} without embeddings; "
+                    "fulltext and bm25 can search it, dense cannot"
+                )
+                return 0
 
             if arguments.query is None:
                 provider = build_embedding_provider(settings, client, budget)

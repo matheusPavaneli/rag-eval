@@ -228,3 +228,57 @@ def test_a_question_is_normalised_to_the_lexemes_its_chunk_stores(store: VectorS
     stored = set(store.chunk_terms(CORPUS)[0].terms)
 
     assert set(store.query_terms("What is a protocol class?")) == stored == {"class", "protocol"}
+
+
+def test_a_text_only_chunk_is_lexical_but_invisible_to_dense(store: VectorStore) -> None:
+    store.upsert(CORPUS, [_chunk(0, "an embedded enumeration")], [[1.0, 0.0, 0.0]], SOURCE_PATHS)
+    store.insert_text(CORPUS, [_chunk(1, "a bare enumeration")], SOURCE_PATHS)
+
+    assert store.count(CORPUS) == 2
+    assert store.count(CORPUS, embedded=True) == 1
+    assert [chunk.chunk_id for chunk in store.search(CORPUS, [1.0, 0.0, 0.0], limit=10)] == [
+        "chunk-0"
+    ]
+    assert {chunk.chunk_id for chunk in store.lexical_search(CORPUS, "enumeration", 10)} == {
+        "chunk-0",
+        "chunk-1",
+    }
+    assert store.chunk_terms(CORPUS)[1].terms == {"bare": 1, "enumer": 1}
+
+
+def test_storing_text_over_an_embedded_chunk_leaves_it_untouched(store: VectorStore) -> None:
+    store.upsert(CORPUS, [_chunk(0, "original")], [[1.0, 0.0, 0.0]], SOURCE_PATHS)
+
+    store.insert_text(CORPUS, [_chunk(0, "replacement")], SOURCE_PATHS)
+
+    assert store.count(CORPUS, embedded=True) == 1
+    assert store.search(CORPUS, [1.0, 0.0, 0.0], limit=1)[0].text == "original"
+
+
+def test_embedding_a_text_only_chunk_gives_it_the_vector(store: VectorStore) -> None:
+    store.insert_text(CORPUS, [_chunk(0, "later")], SOURCE_PATHS)
+
+    store.upsert(CORPUS, [_chunk(0, "later")], [[0.0, 1.0, 0.0]], SOURCE_PATHS)
+
+    assert store.count(CORPUS) == 1
+    assert store.count(CORPUS, embedded=True) == 1
+    assert store.search(CORPUS, [0.0, 1.0, 0.0], limit=1)[0].text == "later"
+
+
+def test_ensure_schema_relaxes_a_table_built_with_a_required_vector(
+    database: psycopg.Connection[tuple[object, ...]], store: VectorStore
+) -> None:
+    store.upsert(CORPUS, [_chunk(0, "kept")], [[1.0, 0.0, 0.0]], SOURCE_PATHS)
+    with database.cursor() as cursor:
+        cursor.execute(
+            sql.SQL("ALTER TABLE {} ALTER COLUMN embedding SET NOT NULL").format(
+                sql.Identifier(TABLE)
+            )
+        )
+    database.commit()
+
+    store.ensure_schema()
+    store.insert_text(CORPUS, [_chunk(1, "bare")], SOURCE_PATHS)
+
+    assert store.count(CORPUS) == 2
+    assert store.count(CORPUS, embedded=True) == 1
