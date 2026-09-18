@@ -43,3 +43,14 @@ def test_get_settings_returns_one_instance() -> None:
     get_settings.cache_clear()
 
     assert get_settings() is get_settings()
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_a_blank_key_variable_means_no_key(monkeypatch: pytest.MonkeyPatch, blank: str) -> None:
+    monkeypatch.setenv("RAGEVAL_GEMINI_API_KEY", blank)
+    monkeypatch.setenv("RAGEVAL_GROQ_API_KEY", blank)
+
+    settings = Settings()
+
+    assert settings.gemini_api_key is None
+    assert settings.groq_api_key is None

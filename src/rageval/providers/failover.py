@@ -12,7 +12,13 @@ from rageval.providers.base import (
     TransientProviderError,
 )
 from rageval.providers.budget import Budget, BudgetedChatProvider, BudgetedEmbeddingProvider
-from rageval.providers.cache import CachedChatProvider, CachedEmbeddingProvider, DiskCache
+from rageval.providers.cache import (
+    CachedChatProvider,
+    CachedEmbeddingProvider,
+    CacheOnlyEmbeddingProvider,
+    DiskCache,
+)
+from rageval.providers.gemini import NAME as GEMINI
 from rageval.providers.gemini import GeminiChatProvider, GeminiEmbeddingProvider
 from rageval.providers.groq import GroqChatProvider
 
@@ -104,10 +110,15 @@ def build_chat_provider(
 def build_embedding_provider(
     settings: Settings, client: httpx.Client, budget: Budget | None = None
 ) -> EmbeddingProvider:
+    cache = DiskCache(settings.cache_dir / CACHE_NAMESPACE)
     if settings.gemini_api_key is None:
-        raise PermanentProviderError(
-            "embeddings need RAGEVAL_GEMINI_API_KEY: Groq exposes no embedding API, "
-            "so there is no second provider to fail over to"
+        # Groq exposes no embedding API, so without a Gemini key the cache is the
+        # only source of vectors: a miss fails instead of reaching the network.
+        return CachedEmbeddingProvider(
+            CacheOnlyEmbeddingProvider(
+                GEMINI, settings.gemini_embedding_model, settings.embedding_dimension
+            ),
+            cache,
         )
 
     spend = budget if budget is not None else build_budget(settings)
@@ -122,5 +133,5 @@ def build_embedding_provider(
             ),
             spend,
         ),
-        DiskCache(settings.cache_dir / CACHE_NAMESPACE),
+        cache,
     )

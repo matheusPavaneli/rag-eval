@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     embedding_max_attempts: int = 8
     embedding_backoff_seconds: float = 20.0
     embedding_backoff_ceiling_seconds: float = 120.0
+
+    @field_validator("gemini_api_key", "groq_api_key", mode="before")
+    @classmethod
+    def _blank_key_is_no_key(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 @lru_cache(maxsize=1)
