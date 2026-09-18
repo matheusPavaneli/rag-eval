@@ -63,6 +63,9 @@ alone, and the answer would then depend on which provider happened to be up when
 the entry was first written — a cached run and a live run could disagree with
 nothing in the corpus or configuration to explain it.
 
+*Superseded by [ADR 0010](0010-chat-cache.md): chat is now cached in front of
+failover, keyed on the configured chain, so a recorded answer replays.*
+
 Embeddings are cached per text, not per batch, so a corpus that gained one
 document re-embeds one document. Embedding the same text as a document and as a
 query are two entries, because they are two different requests.
