@@ -129,7 +129,7 @@ would not have produced a run.
 - **Ingest reproduces across operating systems.** The first CI run, on an
   Ubuntu runner, rebuilt corpus `26b03ce9a1c2c1d4` with the same 1829 chunks as
   the Windows machine that produced the baseline, and the gate reported no
-  drift with zero network calls. The repository forces LF line endings; that is
-  what makes the rebuild byte-identical.
+  drift with zero network calls. The repository forces LF line endings, the
+  likeliest reason the rebuild matches.
 - Next, in order: a dense gate (an embedding path that serves from cache without
   a key), the chat cache in front of failover, then a gate on answers.
