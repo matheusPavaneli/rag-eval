@@ -1,0 +1,199 @@
+@layer reset, tokens, base, layout, components;
+
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  body,
+  h1,
+  h2,
+  h3,
+  p,
+  ol,
+  ul,
+  figure,
+  blockquote,
+  dl,
+  dd {
+    margin: 0;
+  }
+  ol,
+  ul {
+    padding: 0;
+    list-style: none;
+  }
+}
+
+@layer tokens {
+  :root {
+    color-scheme: light dark;
+
+    --ground: oklch(97.5% 0.012 250);
+    --raised: oklch(94% 0.012 250);
+    --ink: oklch(19% 0.0192 250);
+    --muted: oklch(42% 0.0144 250);
+    --border: oklch(87% 0.012 250);
+    --border-strong: oklch(62% 0.012 250);
+    --act: oklch(48% 0.12 250);
+    --cite: oklch(91% 0.14 95);
+    --on-cite: oklch(19% 0.0192 250);
+    --expected: oklch(48% 0.12 250);
+    --expected-on-cite: oklch(48% 0.12 250);
+    --miss: oklch(50% 0.16 25);
+
+    --font-sans: 'Schibsted Grotesk Variable', 'Schibsted Fallback', system-ui, sans-serif;
+    --font-mono: 'Red Hat Mono Variable', 'Red Hat Mono Fallback', ui-monospace, monospace;
+
+    --text-xs: 0.8125rem;
+    --text-sm: 0.9375rem;
+    --text-md: 1.0625rem;
+    --text-lg: 1.375rem;
+    --text-xl: 1.875rem;
+
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
+
+    --radius-mark: 3px;
+    --radius-control: 6px;
+
+    --control: 36px;
+    --rail: 14px;
+    --duration-state: 160ms;
+    --duration-target: 600ms;
+
+    --focus: 2px solid var(--act);
+  }
+
+  @media (pointer: coarse) {
+    :root {
+      --control: 44px;
+    }
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: oklch(15% 0.012 250);
+      --raised: oklch(20% 0.012 250);
+      --ink: oklch(94% 0.0192 250);
+      --muted: oklch(72% 0.0144 250);
+      --border: oklch(32% 0.012 250);
+      --border-strong: oklch(50% 0.012 250);
+      --act: oklch(74% 0.11 250);
+      --cite: oklch(86% 0.15 95);
+      --on-cite: oklch(15% 0.012 250);
+      --expected: oklch(74% 0.11 250);
+      --expected-on-cite: oklch(15% 0.012 250);
+      --miss: oklch(72% 0.14 25);
+    }
+  }
+}
+
+@layer base {
+  @font-face {
+    font-family: 'Schibsted Fallback';
+    src: local('Arial');
+    size-adjust: 101%;
+    ascent-override: 96%;
+    descent-override: 26%;
+    line-gap-override: 0%;
+  }
+  @font-face {
+    font-family: 'Red Hat Mono Fallback';
+    src: local('Courier New');
+    size-adjust: 100%;
+    ascent-override: 92%;
+    descent-override: 26%;
+    line-gap-override: 0%;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    line-height: 1.6;
+    font-feature-settings: 'ss01';
+  }
+
+  @media (min-width: 1200px) {
+    body.app {
+      block-size: 100dvh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
+    }
+  }
+
+  a {
+    color: var(--act);
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 1px;
+  }
+  a:hover {
+    text-decoration-thickness: 2px;
+  }
+
+  :focus-visible {
+    outline: var(--focus);
+    outline-offset: 2px;
+  }
+
+  code,
+  .mono {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .skip {
+    position: absolute;
+    inset-block-start: var(--space-2);
+    inset-inline-start: var(--space-2);
+    z-index: 10;
+    padding: var(--space-2) var(--space-3);
+    background: var(--ground);
+    border: 1px solid var(--act);
+    border-radius: var(--radius-control);
+    transform: translateY(-200%);
+  }
+  .skip:focus-visible {
+    transform: none;
+  }
+
+  @keyframes arrive {
+    from {
+      outline-offset: 8px;
+      outline-color: transparent;
+    }
+    to {
+      outline-offset: 1px;
+    }
+  }
+}

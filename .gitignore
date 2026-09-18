@@ -31,6 +31,7 @@ Thumbs.db
 
 # Local agent workflow state
 .workflow/
+.unique/
 
 # Generated corpus — rebuilt by `uv run python -m rageval.ingest`
 data/

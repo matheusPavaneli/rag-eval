@@ -1,0 +1,64 @@
+---
+import type { DocumentView } from '../lib/data';
+
+interface Props {
+  document: DocumentView;
+}
+
+const { document } = Astro.props;
+const share = (value: number) => (value / document.length) * 100;
+const ordered = [...document.marks].sort((a, b) => a.start_char - b.start_char);
+const described = ordered
+  .map((mark) => {
+    const name =
+      mark.kind === 'cited' ? `citation ${mark.id.slice(1)}` : `expected span ${mark.id.slice(1)}`;
+    return `${name} at ${Math.round(share(mark.start_char))}%`;
+  })
+  .join(', ');
+---
+
+<div
+  class="offset-rail"
+  role="img"
+  aria-label={`Where the spans sit in ${document.source_path}, from top to bottom: ${described}.`}
+>
+  <div class="track">
+    {
+      ordered.map((mark) => (
+        <span
+          class:list={['tick', mark.kind]}
+          data-tick={mark.id}
+          style={`--at: ${share(mark.start_char).toFixed(3)}%; --span: ${share(mark.end_char - mark.start_char).toFixed(3)}%`}
+        />
+      ))
+    }
+  </div>
+</div>
+
+<style>
+  .offset-rail {
+    position: relative;
+    inline-size: var(--rail);
+    border-inline-start: 1px solid var(--border);
+    background: var(--raised);
+  }
+  .track {
+    position: absolute;
+    inset: var(--space-2) 0;
+  }
+  .tick {
+    position: absolute;
+    inset-block-start: var(--at);
+    block-size: max(var(--span), 4px);
+    border-radius: 1px;
+  }
+  .tick.cited {
+    inset-inline: 2px 5px;
+    background: var(--cite);
+    box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--on-cite) 25%, transparent);
+  }
+  .tick.expected {
+    inset-inline: 9px 2px;
+    background: var(--expected);
+  }
+</style>

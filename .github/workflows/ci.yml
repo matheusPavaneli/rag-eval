@@ -107,3 +107,25 @@ jobs:
       - run: >-
           uv run python -m rageval.eval --answer --corpus-version "$CORPUS"
           --replay-answers "$ANSWERS" --baseline "$ANSWER_BASELINE" --fail-on-change
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run python -m rageval.site --out web/src/data
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: pnpm --dir web check
+      - run: pnpm --dir web build
+      - run: pnpm --dir web test

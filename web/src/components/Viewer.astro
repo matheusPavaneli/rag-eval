@@ -1,0 +1,46 @@
+---
+import type { QuestionPage, QuestionSummary } from '../lib/data';
+import AnswerPanel from './AnswerPanel.astro';
+import QuestionRail from './QuestionRail.astro';
+import SourcePane from './SourcePane.astro';
+
+interface Props {
+  page: QuestionPage;
+  questions: QuestionSummary[];
+  lede?: boolean;
+}
+
+const { page, questions, lede = false } = Astro.props;
+---
+
+<div class="viewer">
+  <QuestionRail questions={questions} current={page.id} />
+  <main id="main" class="answer-column" tabindex="-1">
+    <AnswerPanel page={page} lede={lede} />
+  </main>
+  <SourcePane documents={page.documents} />
+</div>
+
+<style>
+  .viewer {
+    display: grid;
+  }
+
+  .answer-column:focus {
+    outline: none;
+  }
+
+  @media (min-width: 1200px) {
+    .viewer {
+      grid-template-columns: 15rem minmax(0, 1fr) minmax(35rem, 45rem);
+      min-block-size: 0;
+    }
+    .viewer > :global(*) {
+      min-block-size: 0;
+    }
+    .answer-column {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+  }
+</style>

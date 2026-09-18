@@ -1,0 +1,111 @@
+---
+import type { QuestionSummary } from '../lib/data';
+import { withBase } from '../lib/format';
+
+interface Props {
+  questions: QuestionSummary[];
+  current: string;
+}
+
+const { questions, current } = Astro.props;
+
+function verdict(question: QuestionSummary): { label: string; tone: 'hit' | 'miss' | 'absent' } {
+  if (question.citation_hit) return { label: 'hit', tone: 'hit' };
+  if (question.retrieved) return { label: 'miss', tone: 'miss' };
+  return { label: 'not retrieved', tone: 'absent' };
+}
+---
+
+<nav aria-label="Golden questions">
+  <ol>
+    {
+      questions.map((question) => {
+        const { label, tone } = verdict(question);
+        return (
+          <li>
+            <a
+              href={withBase(`/q/${question.id}/`)}
+              aria-current={question.id === current ? 'page' : undefined}
+            >
+              <span class="id mono">{question.id}</span>
+              <span class="text">{question.question}</span>
+              <span class:list={['tag', 'mono', tone]}>{label}</span>
+            </a>
+          </li>
+        );
+      })
+    }
+  </ol>
+</nav>
+
+<style>
+  nav {
+    padding: var(--space-3) var(--space-2);
+  }
+
+  ol {
+    display: grid;
+    gap: 2px;
+  }
+
+  a {
+    display: grid;
+    grid-template-columns: 2.25rem 1fr;
+    grid-template-areas: 'id text' '. tag';
+    column-gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    min-block-size: var(--control);
+    border-radius: var(--radius-control);
+    border: 1px solid transparent;
+    color: var(--ink);
+    text-decoration: none;
+    font-size: var(--text-xs);
+    line-height: 1.45;
+    transition: border-color var(--duration-state) ease;
+  }
+  a:hover {
+    border-color: var(--act);
+  }
+  a[aria-current='page'] {
+    background: var(--raised);
+    border-color: var(--border);
+    box-shadow: inset 2px 0 0 var(--act);
+  }
+
+  .id {
+    grid-area: id;
+    color: var(--muted);
+  }
+  .text {
+    grid-area: text;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+  .tag {
+    grid-area: tag;
+    justify-self: start;
+    margin-block-start: 2px;
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .tag.hit {
+    color: var(--act);
+  }
+  .tag.miss {
+    color: var(--miss);
+  }
+
+  @media (max-width: 1199px) {
+    nav {
+      padding-block-start: 0;
+    }
+    ol {
+      grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    }
+  }
+</style>

@@ -1,0 +1,25 @@
+---
+import Viewer from '../../components/Viewer.astro';
+import Base from '../../layouts/Base.astro';
+import type { QuestionPage } from '../../lib/data';
+import { questionPages, site } from '../../lib/data';
+
+export function getStaticPaths() {
+  return questionPages().map((page) => ({ params: { id: page.id }, props: { page } }));
+}
+
+interface Props {
+  page: QuestionPage;
+}
+
+const { page } = Astro.props;
+---
+
+<Base
+  title={`${page.question} · rageval`}
+  description={`The answer rageval gave to “${page.question}”, with every citation located to the character in the source PEP.`}
+  current="answers"
+  app
+>
+  <Viewer page={page} questions={site().questions} />
+</Base>

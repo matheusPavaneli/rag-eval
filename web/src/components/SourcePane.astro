@@ -1,0 +1,216 @@
+---
+import type { DocumentView } from '../lib/data';
+import { characters } from '../lib/format';
+import { renderLines, targetRules } from '../lib/source';
+import OffsetRail from './OffsetRail.astro';
+
+interface Props {
+  documents: DocumentView[];
+}
+
+const { documents } = Astro.props;
+const rules = targetRules(documents.flatMap((document) => document.marks));
+---
+
+<section class="source" aria-label="Source documents">
+  {
+    documents.map((document) => (
+      <article class="doc-view" aria-labelledby={`title-${document.source_path}`}>
+        <header class="doc-head">
+          <div>
+            <p class="file mono">{document.source_path}</p>
+            <h2 id={`title-${document.source_path}`}>{document.title}</h2>
+          </div>
+          <dl class="legend">
+            <div>
+              <dt>
+                <span class="swatch cited" aria-hidden="true" />
+                Cited
+              </dt>
+              <dd class="visually-hidden">highlighted in yellow</dd>
+            </div>
+            <div>
+              <dt>
+                <span class="swatch expected" aria-hidden="true" />
+                Expected
+              </dt>
+              <dd class="visually-hidden">underlined in blue</dd>
+            </div>
+            <div>
+              <dt class="mono">{characters(document.length)}</dt>
+            </div>
+          </dl>
+          <a class="back" href="#question">Back to the answer</a>
+        </header>
+        <div class="doc-body">
+          <div
+            class="doc-scroll"
+            tabindex="0"
+            role="region"
+            aria-label={`Text of ${document.source_path}`}
+          >
+            <div class="doc mono" set:html={renderLines(document)} />
+          </div>
+          <OffsetRail document={document} />
+        </div>
+      </article>
+    ))
+  }
+</section>
+
+<style is:inline set:html={rules}></style>
+
+<style>
+  .source {
+    display: flex;
+    flex-direction: column;
+    min-block-size: 0;
+    border-inline-start: 1px solid var(--border);
+  }
+
+  .doc-view {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-block-size: 0;
+  }
+  .doc-view + .doc-view {
+    border-block-start: 1px solid var(--border-strong);
+  }
+
+  .doc-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-6);
+    padding: var(--space-4) var(--space-6);
+    border-block-end: 1px solid var(--border);
+  }
+  .file {
+    color: var(--muted);
+    font-size: var(--text-xs);
+  }
+  h2 {
+    font-size: var(--text-md);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+  }
+
+  .legend {
+    display: flex;
+    gap: var(--space-4);
+    color: var(--muted);
+    font-size: var(--text-xs);
+  }
+  .legend dt {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .swatch {
+    inline-size: 1.25rem;
+    block-size: 0.85rem;
+    border-radius: var(--radius-mark);
+  }
+  .swatch.cited {
+    background: var(--cite);
+  }
+  .swatch.expected {
+    box-shadow: inset 0 -2px 0 var(--expected);
+  }
+
+  .back {
+    display: none;
+  }
+
+  .doc-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--rail);
+    flex: 1 1 0;
+    min-block-size: 0;
+  }
+
+  .doc-scroll {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--space-6);
+  }
+
+  .doc {
+    max-inline-size: 80ch;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+
+  .doc :global(.l.heading) {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .doc :global(.l.text) {
+    color: var(--ink);
+  }
+  .doc :global(.l.fence) {
+    color: var(--border-strong);
+  }
+
+  .doc :global(.anchor) {
+    scroll-margin-block: 6rem;
+  }
+
+  .doc :global(mark) {
+    color: inherit;
+    background: none;
+    border-radius: var(--radius-mark);
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+  .doc :global(mark.cited) {
+    background: var(--cite);
+    color: var(--on-cite);
+    padding-block: 1px;
+  }
+  .doc :global(mark.expected) {
+    box-shadow: inset 0 -2px 0 var(--expected);
+  }
+  .doc :global(mark.cited.expected) {
+    box-shadow: inset 0 -2px 0 var(--expected-on-cite);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .doc :global(mark) {
+      animation: none !important;
+    }
+  }
+
+  @media (max-width: 1199px) {
+    .source {
+      border-inline-start: 0;
+      border-block-start: 1px solid var(--border);
+    }
+    .doc-view {
+      flex: none;
+    }
+    .back {
+      display: inline-flex;
+      align-items: center;
+      min-block-size: var(--control);
+      font-size: var(--text-xs);
+    }
+    .doc-body {
+      flex: none;
+      block-size: min(80dvh, 44rem);
+    }
+  }
+
+  @media (max-width: 767px) {
+    .doc-head,
+    .doc-scroll {
+      padding-inline: var(--space-4);
+    }
+  }
+</style>
