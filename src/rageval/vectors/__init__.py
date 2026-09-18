@@ -1,11 +1,3 @@
-"""Move the embedding cache entries one corpus version needs between machines.
-
-A snapshot holds, for every chunk of a corpus version and every golden question,
-the cache entry the embedding provider would read: the entry's digest and its
-vector, exactly as cached. Imported into an empty cache it lets indexing and the
-dense eval run with no key and no network call.
-"""
-
 import gzip
 import hashlib
 from collections.abc import Sequence

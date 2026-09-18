@@ -104,25 +104,46 @@ uv run python -m rageval.retrieval --query "What is the maximum line length PEP 
 ### What CI protects
 
 Every pull request and every push to `main` rebuilds the corpus from
-`documents/`, stores the chunk text without embedding it, runs the BM25 eval and
-compares it with the
-frozen BM25 report. Any difference fails the build: a question whose recall or
-rank moved in either direction, either aggregate, or a report from another
-configuration. No key and no network call are involved.
+`documents/`, runs the BM25, dense and hybrid evals, and compares each with its
+frozen report. Any difference fails the build: a question whose recall or rank
+moved in either direction, either aggregate, or a report from another
+configuration. No key is involved and no call reaches a model provider.
+
+Dense needs vectors, and CI has no key to make them. Without a key the embedding
+provider serves only from its cache and refuses on a miss. CI fills that cache
+from a snapshot of the 1859 vectors the corpus and golden set need, attached to
+the release
+[`vectors-26b03ce9a1c2c1d4`](https://github.com/matheusPavaneli/rag-eval/releases/tag/vectors-26b03ce9a1c2c1d4)
+and pinned by sha256 in the workflow.
 
 A green check covers ingest, chunking, the lexeme config, the golden-set loader,
-the metrics and BM25. It does **not** cover the dense numbers, fusion, the
-reranker or the answers — those still need an embedding or a chat model, and
-neither can run in CI reproducibly yet. Of four regressions planted to test the
-gate, it caught the two the unit suite missed; one golden-span edit smaller than
-a chunk got past both. Details in [ADR 0008](docs/adr/0008-quality-gate.md).
+the metrics, BM25, dense retrieval and fusion. It does **not** cover the reranker
+or the answers, or a golden-span edit smaller than a chunk. Ubuntu reproduced the
+Windows baselines exactly. Across the planted regressions, the lexical gate caught
+two that the unit suite missed. The dense gate refused a query embedded as a
+document rather than calling the network, and it caught a fusion bug that
+*raised* MRR. Details in [ADR 0008](docs/adr/0008-quality-gate.md) and
+[ADR 0009](docs/adr/0009-dense-gate.md).
 
 ```bash
 uv run python -m rageval.ingest documents/
 uv run python -m rageval.retrieval --corpus-version 26b03ce9a1c2c1d4 --lexical-only
 uv run python -m rageval.eval --mode bm25 --corpus-version 26b03ce9a1c2c1d4 \
   --baseline evals/reports/20260918T134848Z-26b03ce9a1c2c1d4-bm25.json --fail-on-change
+
+# dense and hybrid, with no key: fill the cache from the pinned snapshot
+gh release download vectors-26b03ce9a1c2c1d4 --pattern embeddings-26b03ce9a1c2c1d4.jsonl.gz
+uv run python -m rageval.vectors import embeddings-26b03ce9a1c2c1d4.jsonl.gz \
+  --sha256 49f22cf2bc87a061005adce96737f5d22e7803bca063cbeba1b362bbde4bcc82
+uv run python -m rageval.retrieval --corpus-version 26b03ce9a1c2c1d4
+uv run python -m rageval.eval --mode dense --corpus-version 26b03ce9a1c2c1d4 \
+  --baseline evals/reports/20260918T134844Z-26b03ce9a1c2c1d4-dense.json --fail-on-change
 ```
+
+A change to chunking or to the embedding model is a new corpus version: embed
+it locally with a key, run `python -m rageval.vectors export`, publish a new
+`vectors-<corpus>` release, and update the pins and baselines in `ci.yml` in the
+same PR.
 
 ## What is measured, and what that is worth
 
@@ -277,9 +298,9 @@ almost every quote resolved, and about half the answers cite the exact golden
 span — a lower bound, since the golden set records one span where the source
 often has several. **F6** made the harness a CI gate, starting where the number
 is deterministic without a key: BM25, compared per question with zero tolerance.
-Gating dense retrieval needs an embedding path that serves from cache without a
-key; gating answers needs the chat cache moved in front of failover and a judge
-for answer correctness. **F7** puts a frontend on it where clicking a citation highlights the span it
+A follow-up gated dense and hybrid the same way, from pinned cached vectors
+with no key. Gating answers needs the chat cache moved in front of failover and
+a judge for answer correctness. **F7** puts a frontend on it where clicking a citation highlights the span it
 came from.
 
 The ordering is deliberate, and it is the argument the project is making:
