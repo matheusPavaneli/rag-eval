@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 
+from rageval.answer.citations import ResolvedCitation, UnresolvedCitation
 from rageval.eval.golden import Support
 from rageval.retrieval.store import ScoredChunk
 
@@ -24,6 +25,19 @@ def reciprocal_rank(retrieved: Sequence[ScoredChunk], supports: Sequence[Support
         if any(covers(chunk, support) for support in supports):
             return 1.0 / rank
     return 0.0
+
+
+def citation_hit(
+    citations: Sequence[ResolvedCitation | UnresolvedCitation], supports: Sequence[Support]
+) -> bool:
+    return any(
+        citation.source_path == support.source_path
+        and citation.start_char < support.end_char
+        and support.start_char < citation.end_char
+        for citation in citations
+        if isinstance(citation, ResolvedCitation)
+        for support in supports
+    )
 
 
 def mean(values: Sequence[float]) -> float:

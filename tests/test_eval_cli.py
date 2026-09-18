@@ -1,10 +1,14 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
-from rageval.eval.__main__ import _config_slug
+from rageval.eval.__main__ import _config_slug, _mode_slug
 from rageval.eval.__main__ import build_parser as eval_parser
+from rageval.eval.__main__ import main as eval_main
+from rageval.eval.answers import AnswerReport
 from rageval.retrieval.__main__ import build_parser as retrieval_parser
+from rageval.retrieval.__main__ import main as retrieval_main
 from rageval.retrieval.search import Bm25Config, DenseConfig, HybridConfig, RerankConfig
 
 DEFAULT = Path("evals/golden-set.jsonl")
@@ -83,3 +87,51 @@ def test_a_rerank_report_file_is_named_after_its_first_stage() -> None:
     assert _config_slug(rerank(hybrid)) == "rerank-hybrid-bm25"
     assert _config_slug(hybrid) == "hybrid-bm25"
     assert _config_slug(Bm25Config(k1=1.2, b=0.75)) == "bm25"
+
+
+def test_answering_is_off_unless_asked_for() -> None:
+    assert eval_parser(DEFAULT, top_k=5).parse_args([]).answer is False
+    assert retrieval_parser(top_k=5).parse_args([]).answer is False
+
+
+def test_an_answer_report_file_is_named_after_its_retriever() -> None:
+    report = AnswerReport(
+        ran_at=datetime(2026, 9, 18, tzinfo=UTC),
+        rageval_version="0",
+        corpus_version="c",
+        embedding_model="e",
+        chat_model="m",
+        prompt_version="p",
+        k=5,
+        question_count=0,
+        retrieved_count=0,
+        citation_hit_rate=0.0,
+        citation_hit_rate_retrieved=0.0,
+        citation_count=0,
+        resolution_rate=0.0,
+        mean_citation_chars=0.0,
+        mean_cited_chunk_chars=0.0,
+        parse_failures=0,
+        providers={},
+        network_calls=0,
+        results=(),
+    )
+
+    assert _mode_slug(report) == "answer-dense"
+
+
+@pytest.mark.parametrize("extra", [["--rerank"], ["--baseline", "evals/reports/x.json"]])
+def test_answering_refuses_a_reranker_or_a_baseline_before_touching_anything(
+    extra: list[str],
+) -> None:
+    with pytest.raises(SystemExit) as refused:
+        eval_main(["--answer", *extra])
+
+    assert refused.value.code == 2
+
+
+def test_answering_one_question_needs_the_question() -> None:
+    with pytest.raises(SystemExit) as refused:
+        retrieval_main(["--answer"])
+
+    assert refused.value.code == 2

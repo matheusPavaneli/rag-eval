@@ -5,8 +5,10 @@ from collections.abc import Sequence
 import httpx
 import psycopg
 
+from rageval.answer.citations import ResolvedCitation
+from rageval.answer.generate import answer_question
 from rageval.config import get_settings
-from rageval.providers import build_budget, build_embedding_provider
+from rageval.providers import build_budget, build_chat_provider, build_embedding_provider
 from rageval.providers.base import ProviderError
 from rageval.retrieval.index import index_corpus, latest_corpus_version
 from rageval.retrieval.search import LEXICAL_MODES, MODES, Bm25Config, build_retriever
@@ -31,6 +33,11 @@ def build_parser(top_k: int) -> argparse.ArgumentParser:
     parser.add_argument(
         "--fuse-with", choices=LEXICAL_MODES, default="bm25", help="lexical ranker for hybrid"
     )
+    parser.add_argument(
+        "--answer",
+        action="store_true",
+        help="with --query, answer from the retrieved chunks and show each cited span",
+    )
     return parser
 
 
@@ -39,6 +46,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = build_parser(settings.retrieval_top_k)
     arguments = parser.parse_args(argv)
+    if arguments.answer and arguments.query is None:
+        parser.error("--answer needs --query")
 
     try:
         version = arguments.corpus_version or latest_corpus_version(settings.corpus_dir)
@@ -84,12 +93,29 @@ def main(argv: Sequence[str] | None = None) -> int:
                 settings.rrf_k,
                 settings.retrieval_candidates,
             )
-            for rank, chunk in enumerate(retriever.retrieve(arguments.query), start=1):
+            chunks = retriever.retrieve(arguments.query)
+            for rank, chunk in enumerate(chunks, start=1):
                 head = " ".join(chunk.text.split())[:120]
                 print(
                     f"{rank}. {chunk.score:.3f}  {chunk.source_path}"
                     f"[{chunk.start_char}:{chunk.end_char}]\n   {head}"
                 )
+
+            if arguments.answer:
+                answer = answer_question(
+                    arguments.query, chunks, build_chat_provider(settings, client, budget)
+                )
+                print(f"\nanswer ({answer.provider} {answer.model}):")
+                if answer.parse_error is not None:
+                    print(f"   unparseable response: {answer.parse_error}")
+                    return 1
+                print(f"   {answer.text}")
+                for citation in answer.citations:
+                    if isinstance(citation, ResolvedCitation):
+                        where = f"{citation.source_path}[{citation.start_char}:{citation.end_char}]"
+                    else:
+                        where = f"unresolved ({citation.reason})"
+                    print(f"   [{citation.chunk}] {where}\n       {citation.quote!r}")
     except (RetrievalError, ProviderError) as error:
         print(f"retrieval failed: {error}", file=sys.stderr)
         return 1

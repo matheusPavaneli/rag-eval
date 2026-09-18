@@ -8,10 +8,11 @@ import psycopg
 from pydantic import ValidationError
 
 from rageval.config import get_settings
+from rageval.eval.answers import AnswerReport, run_answer_eval
 from rageval.eval.golden import GoldenSetError, load_golden_set
 from rageval.eval.runner import EvalReport, ReportMismatchError, compare, run_eval
 from rageval.ingest.documents import DocumentReadError, load_documents
-from rageval.providers import build_budget, build_embedding_provider
+from rageval.providers import build_budget, build_chat_provider, build_embedding_provider
 from rageval.providers.base import ProviderError
 from rageval.retrieval.index import latest_corpus_version, load_manifest
 from rageval.retrieval.rerank import OnnxCrossEncoder
@@ -50,6 +51,11 @@ def build_parser(golden_set_path: Path, top_k: int) -> argparse.ArgumentParser:
         "--rerank", action="store_true", help="rerank the first stage's candidates locally"
     )
     parser.add_argument(
+        "--answer",
+        action="store_true",
+        help="generate an answer with quoted citations per question and score the citations",
+    )
+    parser.add_argument(
         "--baseline", type=Path, default=None, help="report to list flipped questions against"
     )
     return parser
@@ -60,6 +66,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = build_parser(settings.golden_set_path, settings.retrieval_top_k)
     arguments = parser.parse_args(argv)
+    if arguments.answer and (arguments.rerank or arguments.baseline is not None):
+        parser.error("--answer runs over a first-stage retriever; drop --rerank and --baseline")
 
     baseline = None
     if arguments.baseline is not None:
@@ -119,13 +127,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                     settings.retrieval_candidates,
                 )
 
-            report = run_eval(
-                questions,
-                retriever,
-                manifest.chunk_config,
-                settings.embedding_dimension,
-                lambda: budget.state.calls,
-            )
+            report: EvalReport | AnswerReport
+            if arguments.answer:
+                report = run_answer_eval(
+                    questions,
+                    retriever,
+                    build_chat_provider(settings, client, budget),
+                    lambda: budget.state.calls,
+                )
+            else:
+                report = run_eval(
+                    questions,
+                    retriever,
+                    manifest.chunk_config,
+                    settings.embedding_dimension,
+                    lambda: budget.state.calls,
+                )
     except (GoldenSetError, RetrievalError, ProviderError, DocumentReadError) as error:
         print(f"eval failed: {error}", file=sys.stderr)
         return 1
@@ -139,6 +156,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     path.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
 
     print(f"{report.question_count} questions, {report.network_calls} call(s) reached the network")
+    if isinstance(report, AnswerReport):
+        _print_answers(report)
+        print(f"\nreport {path}\n\nREADME row:\n{report.table_row()}")
+        return 0
+
     print(f"context recall @{report.k}  {report.context_recall_at_k:.3f}")
     print(f"MRR @{report.k}            {report.mrr_at_k:.3f}")
     print(f"\nreport {path}\n\nREADME row:\n{report.table_row()}")
@@ -154,8 +176,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-def _mode_slug(report: EvalReport) -> str:
-    return _config_slug(report.retrieval)
+def _print_answers(report: AnswerReport) -> None:
+    print(f"citation hit rate @{report.k}            {report.citation_hit_rate:.3f}")
+    print(
+        f"  over retrieved gold spans     {report.citation_hit_rate_retrieved:.3f} "
+        f"({report.retrieved_count} questions)"
+    )
+    print(f"citations resolved             {report.resolution_rate:.3f} of {report.citation_count}")
+    print(
+        f"mean citation / cited chunk    {report.mean_citation_chars:.0f} / "
+        f"{report.mean_cited_chunk_chars:.0f} chars"
+    )
+    print(f"unparseable responses          {report.parse_failures}")
+    print(f"answered by                    {report.providers}")
+
+
+def _mode_slug(report: EvalReport | AnswerReport) -> str:
+    slug = _config_slug(report.retrieval)
+    return f"answer-{slug}" if isinstance(report, AnswerReport) else slug
 
 
 def _config_slug(config: RetrievalConfig) -> str:

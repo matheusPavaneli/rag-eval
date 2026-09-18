@@ -1,0 +1,943 @@
+{
+  "ran_at": "2026-09-18T14:44:40.703533Z",
+  "rageval_version": "0.1.0",
+  "corpus_version": "26b03ce9a1c2c1d4",
+  "retrieval": {
+    "mode": "dense"
+  },
+  "embedding_model": "gemini-embedding-001",
+  "chat_model": "gemini-3.5-flash",
+  "prompt_version": "682ec1326b2f",
+  "k": 5,
+  "question_count": 30,
+  "retrieved_count": 23,
+  "citation_hit_rate": 0.5333333333333333,
+  "citation_hit_rate_retrieved": 0.6956521739130435,
+  "citation_count": 52,
+  "resolution_rate": 0.9807692307692307,
+  "mean_citation_chars": 104.43137254901961,
+  "mean_cited_chunk_chars": 846.9215686274509,
+  "parse_failures": 0,
+  "providers": {
+    "gemini/gemini-3.5-flash": 1,
+    "groq/openai/gpt-oss-120b": 29
+  },
+  "network_calls": 32,
+  "results": [
+    {
+      "id": "q01",
+      "question": "What is the maximum line length PEP 8 asks for?",
+      "context_recall": 1.0,
+      "answer": "PEP 8 asks to limit all lines to a maximum of 79 characters. For flowing long blocks of text such as docstrings or comments, the limit should be 72 characters.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 3,
+          "quote": "Limit all lines to a maximum of 79 characters.",
+          "source_path": "pep-0008.md",
+          "start_char": 6029,
+          "end_char": 6075
+        },
+        {
+          "status": "resolved",
+          "chunk": 3,
+          "quote": "For flowing long blocks of text with fewer structural restrictions\n(docstrings or comments), the line length should be limited to 72\ncharacters.",
+          "source_path": "pep-0008.md",
+          "start_char": 6077,
+          "end_char": 6221
+        }
+      ],
+      "cited_chunk_chars": [
+        785,
+        785
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "gemini",
+      "model": "gemini-3.5-flash",
+      "citation_hit": true
+    },
+    {
+      "id": "q02",
+      "question": "How many spaces per indentation level does PEP 8 require?",
+      "context_recall": 1.0,
+      "answer": "PEP 8 requires using 4 spaces for each indentation level.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "Use 4 spaces per indentation level.",
+          "source_path": "pep-0008.md",
+          "start_char": 2470,
+          "end_char": 2505
+        }
+      ],
+      "cited_chunk_chars": [
+        935
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q03",
+      "question": "What does the Zen of Python say about there being one way to do something?",
+      "context_recall": 1.0,
+      "answer": "The Zen of Python states: \"There should be one-- and preferably only one --obvious way to do it.\"",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "There should be one-- and preferably only one --obvious way to do it.",
+          "source_path": "pep-0020.md",
+          "start_char": 812,
+          "end_char": 881
+        }
+      ],
+      "cited_chunk_chars": [
+        856
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q04",
+      "question": "Which quotes should a docstring use?",
+      "context_recall": 1.0,
+      "answer": "Docstrings should be enclosed in triple double quotes, and if backslashes are needed you should use a raw triple‑double‑quoted string.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "For consistency, always use `\"\"\"triple double quotes\"\"\"` around docstrings.  Use `r\"\"\"raw triple double quotes\"\"\"` if you use any backslashes in your docstrings.",
+          "source_path": "pep-0257.md",
+          "start_char": 2347,
+          "end_char": 2508
+        }
+      ],
+      "cited_chunk_chars": [
+        898
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q05",
+      "question": "What is the regular expression a Python source encoding declaration must match?",
+      "context_recall": 1.0,
+      "answer": "The encoding declaration must match the regular expression `^[ \\t\\f]*#.*?coding[:=][ \\t]*([-_.a-zA-Z0-9]+)`.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "^[ \\t\\f]*#.*?coding[:=][ \\t]*([-_.a-zA-Z0-9]+)",
+          "source_path": "pep-0263.md",
+          "start_char": 2015,
+          "end_char": 2061
+        }
+      ],
+      "cited_chunk_chars": [
+        874
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q06",
+      "question": "What is an f-string?",
+      "context_recall": 1.0,
+      "answer": "An f-string is a string literal prefixed with 'f' (or 'F') that can contain expressions inside braces, which are evaluated at runtime and replaced with their values.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "In Python source code, an f-string is a literal string, prefixed with 'f', which contains expressions inside braces.",
+          "source_path": "pep-0498.md",
+          "start_char": 1059,
+          "end_char": 1175
+        },
+        {
+          "status": "resolved",
+          "chunk": 3,
+          "quote": "In source code, f-strings are string literals that are prefixed by the letter 'f' or 'F'.",
+          "source_path": "pep-0498.md",
+          "start_char": 5997,
+          "end_char": 6086
+        }
+      ],
+      "cited_chunk_chars": [
+        905,
+        974
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q07",
+      "question": "What does the walrus operator do?",
+      "context_recall": 1.0,
+      "answer": "The walrus operator (:=) lets you assign a value to a variable as part of an expression, returning that value while also storing it in the target name.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "This is a proposal for creating a way to assign to variables within an expression using the notation `NAME := expr`.",
+          "source_path": "pep-0572.md",
+          "start_char": 308,
+          "end_char": 424
+        },
+        {
+          "status": "resolved",
+          "chunk": 2,
+          "quote": "The value of such a named expression is the same as the incorporated expression, with the additional side-effect that the target is assigned that value:",
+          "source_path": "pep-0572.md",
+          "start_char": 4672,
+          "end_char": 4824
+        }
+      ],
+      "cited_chunk_chars": [
+        990,
+        889
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q08",
+      "question": "What does PEP 484 say about runtime enforcement of type hints?",
+      "context_recall": 1.0,
+      "answer": "PEP 484 makes clear that type hints are not enforced at runtime; they are only for optional static analysis tools, and the Python interpreter should ignore them and not change its behavior based on annotations.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 3,
+          "quote": "While these annotations are available at runtime through the usual `__annotations__` attribute, *no type checking happens at runtime*.",
+          "source_path": "pep-0484.md",
+          "start_char": 1187,
+          "end_char": 1321
+        },
+        {
+          "status": "resolved",
+          "chunk": 4,
+          "quote": "Python interpreters by default should not issue any messages due to type checking and should not alter their behavior based on annotations.",
+          "source_path": "pep-0008.md",
+          "start_char": 45084,
+          "end_char": 45227
+        }
+      ],
+      "cited_chunk_chars": [
+        678,
+        884
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q09",
+      "question": "What is the canonical form of a version's release segment?",
+      "context_recall": 1.0,
+      "answer": "The release segment is a series of one or more dot‑separated numeric components, each a non‑negative integer, expressed as `N(.N)*`.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "* Release segment: `N(.N)*`",
+          "source_path": "pep-0440.md",
+          "start_char": 3541,
+          "end_char": 3568
+        },
+        {
+          "status": "resolved",
+          "chunk": 2,
+          "quote": "All numeric components MUST be non-negative integers represented as sequences of ASCII digits.",
+          "source_path": "pep-0440.md",
+          "start_char": 3818,
+          "end_char": 3912
+        }
+      ],
+      "cited_chunk_chars": [
+        890,
+        717
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q10",
+      "question": "Which table in pyproject.toml declares the build system?",
+      "context_recall": 1.0,
+      "answer": "The `[build-system]` table in pyproject.toml declares the build system.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "The `[build-system]` table is used to store build-related data.",
+          "source_path": "pep-0518.md",
+          "start_char": 6826,
+          "end_char": 6889
+        }
+      ],
+      "cited_chunk_chars": [
+        918
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q11",
+      "question": "What is a build backend?",
+      "context_recall": 0.0,
+      "answer": "A build backend is the Python object named by the `build-backend` entry in a project's `pyproject.toml`; it is a module (or a module:object) that implements the build backend interface and is imported and invoked to perform the build.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "`build-backend` is a string naming a Python object that will be used to perform the build",
+          "source_path": "pep-0517.md",
+          "start_char": 4568,
+          "end_char": 4657
+        },
+        {
+          "status": "resolved",
+          "chunk": 4,
+          "quote": "And we import `module_path` and then lookup `module_path.object_path` (or just `module_path` if `object_path` is missing).",
+          "source_path": "pep-0517.md",
+          "start_char": 5363,
+          "end_char": 5485
+        }
+      ],
+      "cited_chunk_chars": [
+        945,
+        900
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": false
+    },
+    {
+      "id": "q12",
+      "question": "What does paramstyle indicate in the DB-API?",
+      "context_recall": 1.0,
+      "answer": "In the DB‑API, paramstyle is a string constant that specifies the type of parameter‑marker formatting the module expects.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "String constant stating the type of parameter marker formatting expected by the interface.",
+          "source_path": "pep-0249.md",
+          "start_char": 2696,
+          "end_char": 2790
+        }
+      ],
+      "cited_chunk_chars": [
+        858
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q13",
+      "question": "What two methods does the with statement need on a context manager?",
+      "context_recall": 1.0,
+      "answer": "The with statement requires a context manager to implement the __enter__() and __exit__() methods.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "context managers provide `__enter__()` and `__exit__()` methods that are invoked on entry to and exit from the body of the with statement.",
+          "source_path": "pep-0343.md",
+          "start_char": 382,
+          "end_char": 520
+        }
+      ],
+      "cited_chunk_chars": [
+        767
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q14",
+      "question": "What does yield from do?",
+      "context_recall": 0.0,
+      "answer": "The `yield from` expression delegates to another iterable, running its iterator to exhaustion while forwarding any values it yields or receives directly to or from the caller of the delegating generator, and if the sub‑iterator is a generator its `return` value becomes the value of the `yield from` expression.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 4,
+          "quote": "The iterator is run to exhaustion, during which time it yields and receives values directly to or from the caller of the generator containing the `yield from` expression (the \"delegating generator\").",
+          "source_path": "pep-0380.md",
+          "start_char": 2194,
+          "end_char": 2393
+        },
+        {
+          "status": "resolved",
+          "chunk": 4,
+          "quote": "when the iterator is another generator, the subgenerator is allowed to execute a `return` statement with a value, and that value becomes the value of the `yield from` expression.",
+          "source_path": "pep-0380.md",
+          "start_char": 2408,
+          "end_char": 2586
+        }
+      ],
+      "cited_chunk_chars": [
+        829,
+        829
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": false
+    },
+    {
+      "id": "q15",
+      "question": "What is a virtual environment?",
+      "context_recall": 1.0,
+      "answer": "A virtual environment is a lightweight, isolated Python environment that includes its own Python binary and site‑packages directory, optionally isolated from system site directories while sharing the standard library with the base Python installation.",
+      "citations": [
+        {
+          "status": "unresolved",
+          "chunk": 4,
+          "quote": "This PEP proposes to add to Python a mechanism for lightweight \"virtual environments\" with their own site directories, optionally isolated from system site directories.  Each virtual environment has its own Python binary ... and shares the standard library with the base installed Python.",
+          "reason": "not_in_chunk"
+        },
+        {
+          "status": "resolved",
+          "chunk": 3,
+          "quote": "Thus, a Python virtual environment in its simplest form would consist of nothing more than a copy or symlink of the Python binary accompanied by a `pyvenv.cfg` file and a site-packages directory.",
+          "source_path": "pep-0405.md",
+          "start_char": 4508,
+          "end_char": 4703
+        }
+      ],
+      "cited_chunk_chars": [
+        347
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": false
+    },
+    {
+      "id": "q16",
+      "question": "What is a namespace package?",
+      "context_recall": 1.0,
+      "answer": "A namespace package is a new type of package that can be built from portions located in different directories or distributions, does not contain an __init__.py file, and has no __file__ attribute, with its __path__ being a read‑only iterable that aggregates the locations of its portions.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "This PEP defines a new type of package, the \"namespace package\".",
+          "source_path": "pep-0420.md",
+          "start_char": 1542,
+          "end_char": 1606
+        },
+        {
+          "status": "resolved",
+          "chunk": 4,
+          "quote": "* Namespace packages have no `__init__.py` module.",
+          "source_path": "pep-0420.md",
+          "start_char": 10680,
+          "end_char": 10730
+        },
+        {
+          "status": "resolved",
+          "chunk": 4,
+          "quote": "* Portions of namespace packages need not all come from the same directory structure, or even from the same loader.",
+          "source_path": "pep-0420.md",
+          "start_char": 10273,
+          "end_char": 10390
+        }
+      ],
+      "cited_chunk_chars": [
+        999,
+        843,
+        843
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": false
+    },
+    {
+      "id": "q17",
+      "question": "What is an enumeration?",
+      "context_recall": 0.0,
+      "answer": "An enumeration is a distinct type created by subclassing Enum that defines a set of named constant members, each with a name and a value.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "we call `Color` an *enumeration* (or *enum*)",
+          "source_path": "pep-0435.md",
+          "start_char": 3980,
+          "end_char": 4024
+        },
+        {
+          "status": "resolved",
+          "chunk": 2,
+          "quote": "The properties of an enumeration are useful for defining an immutable, related set of constant values",
+          "source_path": "pep-0435.md",
+          "start_char": 2440,
+          "end_char": 2541
+        }
+      ],
+      "cited_chunk_chars": [
+        911,
+        954
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": false
+    },
+    {
+      "id": "q18",
+      "question": "What does PEP 448 generalise?",
+      "context_recall": 1.0,
+      "answer": "PEP 448 generalises the `*` and `**` unpacking operators so they can be used in many more places – allowing an arbitrary number of unpackings in function calls and permitting unpacking inside tuple, list, set, and dictionary displays.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "This PEP proposes extended usages of the `*` iterable unpacking operator and `**` dictionary unpacking operators to allow unpacking in more positions, an arbitrary number of times, and in function calls and displays.",
+          "source_path": "pep-0448.md",
+          "start_char": 263,
+          "end_char": 479
+        }
+      ],
+      "cited_chunk_chars": [
+        951
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q19",
+      "question": "What operator does PEP 465 add for matrix multiplication?",
+      "context_recall": 1.0,
+      "answer": "PEP 465 adds the `@` infix operator for matrix multiplication.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "This PEP proposes a new binary operator to be used for matrix multiplication, called `@`.",
+          "source_path": "pep-0465.md",
+          "start_char": 297,
+          "end_char": 386
+        },
+        {
+          "status": "resolved",
+          "chunk": 2,
+          "quote": "`@`    Same as `*`             `__matmul__`, `__rmatmul__`",
+          "source_path": "pep-0465.md",
+          "start_char": 730,
+          "end_char": 788
+        }
+      ],
+      "cited_chunk_chars": [
+        424,
+        999
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": false
+    },
+    {
+      "id": "q20",
+      "question": "What makes a function a coroutine under PEP 492?",
+      "context_recall": 1.0,
+      "answer": "Under PEP 492 a function becomes a coroutine when it is declared with the `async def` syntax; such functions are always coroutines even if they contain no `await` expressions.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 2,
+          "quote": "`async def` functions are always coroutines, even if they do not contain `await` expressions.",
+          "source_path": "pep-0492.md",
+          "start_char": 5127,
+          "end_char": 5222
+        },
+        {
+          "status": "resolved",
+          "chunk": 4,
+          "quote": "A coroutine function is declared with `async def`. ",
+          "source_path": "pep-0492.md",
+          "start_char": 26387,
+          "end_char": 26437
+        }
+      ],
+      "cited_chunk_chars": [
+        838,
+        658
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": false
+    },
+    {
+      "id": "q21",
+      "question": "How is a project name normalised for the simple repository API?",
+      "context_recall": 0.0,
+      "answer": "Project names are normalized to their canonical lowercase form and used as the path component of the URL (e.g., \"HolyGrail\" becomes \"/holygrail/\").",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 2,
+          "quote": "The format of this URL is `/<project>/` where the `<project>` is replaced by the normalized name for that project, so a project named \"HolyGrail\" would have a URL like `/holygrail/`.",
+          "source_path": "pep-0503.md",
+          "start_char": 1505,
+          "end_char": 1687
+        },
+        {
+          "status": "resolved",
+          "chunk": 5,
+          "quote": "Repositories **MAY** redirect unnormalized URLs to the canonical normalized URL (e.g. `/Foobar/` may redirect to `/foobar/`), however clients **MUST NOT** rely on this redirection and **MUST** request the normalized URL.",
+          "source_path": "pep-0503.md",
+          "start_char": 2750,
+          "end_char": 2976
+        }
+      ],
+      "cited_chunk_chars": [
+        960,
+        906
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": false
+    },
+    {
+      "id": "q22",
+      "question": "Where may underscores appear in a numeric literal?",
+      "context_recall": 1.0,
+      "answer": "Underscores may be used after a base specifier and between digits in a numeric literal, but only a single underscore can appear consecutively and it must be placed between digits.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 4,
+          "quote": "The current proposal is to allow one underscore between digits, and after base specifiers in numeric literals.",
+          "source_path": "pep-0515.md",
+          "start_char": 1017,
+          "end_char": 1127
+        },
+        {
+          "status": "resolved",
+          "chunk": 5,
+          "quote": "Only one consecutive underscore allowed, and only between digits.",
+          "source_path": "pep-0515.md",
+          "start_char": 3938,
+          "end_char": 4003
+        }
+      ],
+      "cited_chunk_chars": [
+        381,
+        912
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q23",
+      "question": "What is a protocol class?",
+      "context_recall": 0.0,
+      "answer": "A protocol class is a class that inherits from `typing.Protocol`, serving as an interface definition whose required members (methods and variables) must be implemented by other classes.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "Protocols are defined by including a special new class `typing.Protocol` (an instance of `abc.ABCMeta`) in the base classes list, typically at the end of the list.",
+          "source_path": "pep-0544.md",
+          "start_char": 10524,
+          "end_char": 10687
+        },
+        {
+          "status": "resolved",
+          "chunk": 4,
+          "quote": "Protocol classes should generally not have many method implementations, as they describe an interface, not an implementation.",
+          "source_path": "pep-0544.md",
+          "start_char": 35903,
+          "end_char": 36030
+        }
+      ],
+      "cited_chunk_chars": [
+        903,
+        929
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": false
+    },
+    {
+      "id": "q24",
+      "question": "What does the dataclass decorator generate?",
+      "context_recall": 1.0,
+      "answer": "The @dataclass decorator adds generated dunder methods to the class, most notably an __init__ method, a __repr__ method, and an __eq__ method (and, depending on options, ordering and hash methods).",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 2,
+          "quote": "- `init`: If true (the default), a `__init__` method will be generated.",
+          "source_path": "pep-0557.md",
+          "start_char": 7358,
+          "end_char": 7431
+        },
+        {
+          "status": "resolved",
+          "chunk": 2,
+          "quote": "- `repr`: If true (the default), a `__repr__` method will be generated.",
+          "source_path": "pep-0557.md",
+          "start_char": 7433,
+          "end_char": 7506
+        },
+        {
+          "status": "resolved",
+          "chunk": 2,
+          "quote": "- `eq`: If true (the default), an `__eq__` method will be generated.",
+          "source_path": "pep-0557.md",
+          "start_char": 7879,
+          "end_char": 7949
+        },
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "Using these fields, the decorator adds generated method definitions to the class to support instance initialization, a repr, comparison methods, and optionally other methods as described in the Specification_ section.",
+          "source_path": "pep-0557.md",
+          "start_char": 1059,
+          "end_char": 1276
+        }
+      ],
+      "cited_chunk_chars": [
+        885,
+        885,
+        885,
+        948
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q25",
+      "question": "How does a package declare that it ships type information?",
+      "context_recall": 1.0,
+      "answer": "A package declares that it ships type information by adding a marker file named `py.typed` to the package (and including it via packaging options such as `package_data`).",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 2,
+          "quote": "Package maintainers who wish to support type checking of their code MUST add a marker file named `py.typed` to their package supporting typing.",
+          "source_path": "pep-0561.md",
+          "start_char": 3955,
+          "end_char": 4098
+        }
+      ],
+      "cited_chunk_chars": [
+        998
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": true
+    },
+    {
+      "id": "q26",
+      "question": "What does from __future__ import annotations change?",
+      "context_recall": 1.0,
+      "answer": "Using `from __future__ import annotations` makes all annotations in a module be stored as string literals instead of being evaluated at definition time, effectively postponing their evaluation.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "turning *all* annotations in a given module into string literals",
+          "source_path": "pep-0563.md",
+          "start_char": 17991,
+          "end_char": 18055
+        },
+        {
+          "status": "resolved",
+          "chunk": 3,
+          "quote": "Postponing the evaluation of annotations solves both problems.",
+          "source_path": "pep-0563.md",
+          "start_char": 1510,
+          "end_char": 1572
+        }
+      ],
+      "cited_chunk_chars": [
+        777,
+        821
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": false
+    },
+    {
+      "id": "q27",
+      "question": "What problem do context variables solve?",
+      "context_recall": 0.0,
+      "answer": "Context variables provide a way to store and retrieve data that is local to a logical execution context—such as request data, language settings, profiling, tracing, or logging—so that this information can be accessed across asynchronous calls without having to pass it explicitly.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "and request data in web applications, language context for `gettext`, etc.",
+          "source_path": "pep-0567.md",
+          "start_char": 1867,
+          "end_char": 1943
+        }
+      ],
+      "cited_chunk_chars": [
+        790
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": false
+    },
+    {
+      "id": "q28",
+      "question": "What does PEP 585 allow in place of typing.List?",
+      "context_recall": 1.0,
+      "answer": "PEP 585 lets you use the built‑in list type with subscription syntax (e.g., list[int]) as a generic type, replacing the need for typing.List.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 2,
+          "quote": "* `list`  # typing.List",
+          "source_path": "pep-0585.md",
+          "start_char": 2721,
+          "end_char": 2744
+        }
+      ],
+      "cited_chunk_chars": [
+        972
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": false
+    },
+    {
+      "id": "q29",
+      "question": "How is an optional type written under PEP 604?",
+      "context_recall": 0.0,
+      "answer": "Under PEP 604 an optional type is expressed as the union of the type and None, e.g. `T | None`.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "As a shorthand for `Union[T1, None]` you can write `Optional[T1]`;",
+          "source_path": "pep-0484.md",
+          "start_char": 32011,
+          "end_char": 32077
+        },
+        {
+          "status": "resolved",
+          "chunk": 2,
+          "quote": "writing `Union[X, Y]` as `X | Y`",
+          "source_path": "pep-0604.md",
+          "start_char": 368,
+          "end_char": 400
+        }
+      ],
+      "cited_chunk_chars": [
+        951,
+        983
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": false
+    },
+    {
+      "id": "q30",
+      "question": "What does a match statement compare a subject against?",
+      "context_recall": 1.0,
+      "answer": "A match statement evaluates the subject expression to get a subject value and then compares that value against the patterns in the case blocks.",
+      "citations": [
+        {
+          "status": "resolved",
+          "chunk": 1,
+          "quote": "The resulting subject value is then used to select the first case block whose patterns succeeds matching it",
+          "source_path": "pep-0634.md",
+          "start_char": 3331,
+          "end_char": 3438
+        },
+        {
+          "status": "resolved",
+          "chunk": 4,
+          "quote": "The pattern matching process takes as input a pattern (following `case`) and a subject value (following `match`).",
+          "source_path": "pep-0634.md",
+          "start_char": 895,
+          "end_char": 1008
+        }
+      ],
+      "cited_chunk_chars": [
+        818,
+        616
+      ],
+      "parse_error": null,
+      "raw_response": null,
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "citation_hit": false
+    }
+  ]
+}
