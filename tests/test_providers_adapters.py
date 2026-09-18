@@ -1,5 +1,6 @@
 import json
 from collections.abc import Callable
+from pathlib import Path
 
 import httpx
 import pytest
@@ -7,6 +8,7 @@ from pydantic import SecretStr
 
 from rageval.config import Settings
 from rageval.providers import (
+    CacheMissError,
     ChatProvider,
     PermanentProviderError,
     TransientProviderError,
@@ -270,9 +272,33 @@ def test_a_chain_built_without_a_key_names_the_variables_it_needs() -> None:
         build_chat_provider(Settings(), client(lambda _: httpx.Response(200, json={})))
 
 
-def test_the_embedding_builder_says_why_it_has_no_second_provider() -> None:
-    with pytest.raises(PermanentProviderError, match="Groq exposes no embedding API"):
-        build_embedding_provider(Settings(), client(lambda _: httpx.Response(200, json={})))
+def test_without_a_key_the_embedding_builder_serves_the_cache_and_never_the_network(
+    tmp_path: Path,
+) -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json=gemini_embed_body([[0.5, 0.5]]))
+
+    settings = Settings(cache_dir=tmp_path, embedding_dimension=2)
+    keyed = build_embedding_provider(
+        settings.model_copy(update={"gemini_api_key": SecretStr(KEY)}), client(handler)
+    )
+    warmed = keyed.embed(["cached"], "query")
+    requests.clear()
+
+    keyless = build_embedding_provider(settings, client(handler))
+
+    assert (keyless.name, keyless.model, keyless.dimension) == (
+        "gemini",
+        settings.gemini_embedding_model,
+        2,
+    )
+    assert keyless.embed(["cached"], "query").vectors == warmed.vectors
+    with pytest.raises(CacheMissError, match="RAGEVAL_GEMINI_API_KEY"):
+        keyless.embed(["never embedded"], "query")
+    assert requests == []
 
 
 def test_one_key_is_enough_to_build_a_chain() -> None:

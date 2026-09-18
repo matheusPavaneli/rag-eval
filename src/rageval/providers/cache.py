@@ -23,6 +23,10 @@ class CacheEntryError(PermanentProviderError):
     pass
 
 
+class CacheMissError(PermanentProviderError):
+    pass
+
+
 class CacheKey(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -157,15 +161,55 @@ class CachedEmbeddingProvider:
         )
 
     def _digest(self, text: str, task: EmbeddingTask) -> str:
-        return DiskCache.digest(
-            CacheKey(
-                provider=self._provider.name,
-                model=self._provider.model,
-                task=task,
-                inputs=(text,),
-                parameters=(("dimension", str(self._provider.dimension)),),
-            )
+        return embedding_digest(
+            self._provider.name, self._provider.model, self._provider.dimension, text, task
         )
+
+
+class CacheOnlyEmbeddingProvider:
+    """Stands in for a provider that has no key: every text it is asked for is a miss.
+
+    Behind CachedEmbeddingProvider it turns the cache into the only source of
+    vectors, so a missing entry fails instead of reaching the network.
+    """
+
+    def __init__(self, name: str, model: str, dimension: int) -> None:
+        self._name = name
+        self._model = model
+        self._dimension = dimension
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def model(self) -> str:
+        return self._model
+
+    @property
+    def dimension(self) -> int:
+        return self._dimension
+
+    def embed(self, texts: Sequence[str], task: EmbeddingTask = "document") -> EmbeddingResult:
+        raise CacheMissError(
+            f"{self._name} {self._model}: no cached embedding for {len(texts)} text(s) and "
+            "RAGEVAL_GEMINI_API_KEY is not set; import the vector snapshot "
+            "(python -m rageval.vectors import) or set the key"
+        )
+
+
+def embedding_digest(
+    provider: str, model: str, dimension: int, text: str, task: EmbeddingTask
+) -> str:
+    return DiskCache.digest(
+        CacheKey(
+            provider=provider,
+            model=model,
+            task=task,
+            inputs=(text,),
+            parameters=(("dimension", str(dimension)),),
+        )
+    )
 
 
 def _validate[T: BaseModel](model: type[T], stored: object, namespace: str, digest: str) -> T:

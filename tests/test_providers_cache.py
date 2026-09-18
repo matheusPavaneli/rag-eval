@@ -7,12 +7,15 @@ from rageval.providers import (
     CachedChatProvider,
     CachedEmbeddingProvider,
     CacheEntryError,
+    CacheMissError,
+    CacheOnlyEmbeddingProvider,
     ChatResult,
     DiskCache,
     EmbeddingResult,
     EmbeddingTask,
     PermanentProviderError,
     Usage,
+    embedding_digest,
 )
 
 
@@ -196,3 +199,51 @@ def test_a_provider_that_returns_too_few_vectors_is_reported_not_indexed(
 
     with pytest.raises(PermanentProviderError, match="asked for 2 embeddings"):
         cached.embed(["alpha", "beta"])
+
+
+def _warm(cache: DiskCache, texts: Sequence[str]) -> RecordingEmbedding:
+    provider = RecordingEmbedding()
+    CachedEmbeddingProvider(provider, cache).embed(texts)
+    return provider
+
+
+def _cache_only(cache: DiskCache) -> CachedEmbeddingProvider:
+    return CachedEmbeddingProvider(CacheOnlyEmbeddingProvider("recording", "embed-a", 3), cache)
+
+
+def test_a_cache_only_provider_serves_every_cached_text(cache: DiskCache) -> None:
+    warmed = _warm(cache, ["alpha", "beta"]).embed(["alpha", "beta"])
+
+    result = _cache_only(cache).embed(["beta", "alpha"])
+
+    assert result.vectors == (warmed.vectors[1], warmed.vectors[0])
+
+
+def test_a_cache_only_miss_names_the_count_and_the_key_and_writes_nothing(
+    cache: DiskCache, tmp_path: Path
+) -> None:
+    _warm(cache, ["alpha"])
+    before = sorted((tmp_path / "providers").rglob("*.json"))
+
+    with pytest.raises(CacheMissError, match=r"1 text\(s\).*RAGEVAL_GEMINI_API_KEY"):
+        _cache_only(cache).embed(["alpha", "unseen"])
+
+    assert sorted((tmp_path / "providers").rglob("*.json")) == before
+
+
+def test_a_cache_only_miss_is_permanent_so_indexing_never_retries_it(cache: DiskCache) -> None:
+    with pytest.raises(PermanentProviderError):
+        _cache_only(cache).embed(["unseen"])
+
+
+def test_embedding_digest_is_the_key_the_cached_provider_writes(
+    cache: DiskCache, tmp_path: Path
+) -> None:
+    _warm(cache, ["alpha"])
+
+    document = embedding_digest("recording", "embed-a", 3, "alpha", "document")
+    query = embedding_digest("recording", "embed-a", 3, "alpha", "query")
+
+    assert cache.get("embedding", document) is not None
+    assert cache.get("embedding", query) is None
+    assert document != query

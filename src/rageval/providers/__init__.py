@@ -20,7 +20,10 @@ from rageval.providers.cache import (
     CachedChatProvider,
     CachedEmbeddingProvider,
     CacheEntryError,
+    CacheMissError,
+    CacheOnlyEmbeddingProvider,
     DiskCache,
+    embedding_digest,
 )
 from rageval.providers.failover import (
     FailoverChatProvider,
@@ -37,6 +40,8 @@ __all__ = [
     "BudgetedChatProvider",
     "BudgetedEmbeddingProvider",
     "CacheEntryError",
+    "CacheMissError",
+    "CacheOnlyEmbeddingProvider",
     "CachedChatProvider",
     "CachedEmbeddingProvider",
     "ChatProvider",
@@ -54,4 +59,5 @@ __all__ = [
     "build_budget",
     "build_chat_provider",
     "build_embedding_provider",
+    "embedding_digest",
 ]
