@@ -9,17 +9,37 @@ out. This one starts there: a golden set of thirty questions, ground truth
 recorded as character spans in the source documents, and a baseline published
 before anything is optimised.
 
-## The current number
+## The current numbers
 
 | Date | Configuration | Context recall @5 | MRR @5 |
 | --- | --- | --- | --- |
-| 2026-09-16 | gemini-embedding-001, 768d, chunk 1000/150, k=5, corpus `26b03ce9a1c2c1d4` | 0.767 | 0.603 |
+| 2026-09-16 | dense: gemini-embedding-001, 768d, chunk 1000/150, k=5, corpus `26b03ce9a1c2c1d4` | 0.767 | 0.603 |
+| 2026-09-18 | fulltext: Postgres full-text (ts_rank_cd, english), chunk 1000/150, k=5, corpus `26b03ce9a1c2c1d4` | 0.400 | 0.222 |
+| 2026-09-18 | bm25: BM25 (k1=1.2, b=0.75) over Postgres english lexemes, chunk 1000/150, k=5, corpus `26b03ce9a1c2c1d4` | 0.600 | 0.465 |
+| 2026-09-18 | hybrid (RRF k=60, 20 candidates each): gemini-embedding-001, 768d + Postgres full-text (ts_rank_cd, english), chunk 1000/150, k=5, corpus `26b03ce9a1c2c1d4` | 0.767 | 0.439 |
+| 2026-09-18 | hybrid (RRF k=60, 20 candidates each): gemini-embedding-001, 768d + BM25 (k1=1.2, b=0.75) over Postgres english lexemes, chunk 1000/150, k=5, corpus `26b03ce9a1c2c1d4` | 0.800 | 0.570 |
 
-Measured over fifty Python Enhancement Proposals (~1.3 MB, 1829 chunks) with
-exact cosine search in pgvector, over the whole golden set — the harness refuses
-to report over a partial index or a corpus version it cannot resolve every span
-against. The report behind the row, carrying the per-question result and every
-parameter that produced it, is in [`evals/reports/`](evals/reports/).
+Measured over fifty Python Enhancement Proposals (~1.3 MB, 1829 chunks), over the
+whole golden set — the harness refuses to report over a partial index or a corpus
+version it cannot resolve every span against. The dense row is the F3 baseline;
+it was re-run on 2026-09-18 and reproduced to the digit with no network call.
+Each row's report, carrying the per-question result and every parameter that
+produced it, is in [`evals/reports/`](evals/reports/).
+
+What the rows say, read with the per-question flips rather than the aggregates:
+
+- **Hybrid with BM25 trades rank for recall, and the gain is one question.** It
+  finds two passages dense misses (q17, q27) and loses one dense found (q19): net
+  +0.033 recall. MRR falls 0.603 → 0.570 — eight questions dense already answered
+  are ranked lower, three higher. On thirty questions that is not a win; it is a
+  different retriever with a different failure set.
+- **BM25 over full-text is the clearest number here.** Both rank the *same*
+  Postgres lexemes, so the gap — +0.200 recall, +0.243 MRR — is what IDF and
+  term saturation are worth on this corpus. `ts_rank_cd` has no IDF, and `pep`
+  occurs in 524 of 1829 chunks.
+- **Fusing a weak ranker costs precision.** Hybrid over full-text keeps dense's
+  recall and drops MRR to 0.439.
+- Five questions are missed by every configuration: q11, q14, q21, q23, q29.
 
 **Context recall @5** is the share of supporting passages that appear somewhere in
 the top five. **MRR @5** is how far down the list the first correct passage sat.
@@ -105,10 +125,26 @@ speed is not needed, and an ANN index would fold its own recall loss into the
 baseline without saying so. Adding one later becomes its own slice, with the
 recall it costs measured against this number instead of assumed to be zero.
 
+Two lexical rankers sit beside it, and both are named for what they are.
+**Full-text** is Postgres `ts_rank_cd` over a generated `tsvector` column: cover
+density, with no inverse document frequency — it is not BM25, and is not called
+BM25. **BM25** is computed in memory from the lexemes that same column stores,
+so the two differ in the ranking function and nothing else. **Hybrid** fuses
+dense with either through reciprocal rank fusion, which combines rank positions
+rather than scores that live on incomparable scales.
+
 **Eval** runs the golden set through the retriever and writes a frozen report to
 `evals/reports/` holding both metrics and the entire configuration that produced
-them: corpus version, model, dimension, chunk size, overlap, k, and how many
-calls actually reached the network.
+them: corpus version, retrieval configuration, model, dimension, chunk size,
+overlap, k, and how many calls actually reached the network. Given
+`--baseline <report>`, it also lists the questions that flipped in each
+direction, and refuses to compare reports of a different corpus, `k` or
+question set.
+
+```bash
+uv run python -m rageval.eval --mode hybrid --fuse-with bm25 \
+  --baseline evals/reports/20260916T154348Z-26b03ce9a1c2c1d4.json
+```
 
 ## The corpus
 
@@ -141,18 +177,22 @@ Useful while poking at it:
 
 ```bash
 uv run python -m rageval.retrieval --query "what is the maximum line length?" -k 5
+uv run python -m rageval.retrieval --query "what is an enumeration?" --mode bm25
 ```
 
 ## Where this is going
 
-Built in slices, each one measured before the next begins. The baseline above is
-the point of the first four: **F0** a reproducible skeleton, **F1** ingest with
-spans, **F2** the provider layer with caching and failover, **F3** the pgvector
-baseline and this number.
+Built in slices, each one measured before the next begins: **F0** a reproducible
+skeleton, **F1** ingest with spans, **F2** the provider layer with caching and
+failover, **F3** the pgvector baseline and its number.
 
-What comes next only makes sense now that there is something to compare against.
-**F4** adds BM25, reciprocal rank fusion and a local reranker, and has to beat
-the number above on the same golden set and corpus version. **F5** resolves
+**F4** measured lexical retrieval and fusion against that baseline. Its first
+lexical ranker was Postgres full-text; measuring it exposed the missing IDF, so
+the slice added real BM25 over the same lexemes rather than tuning around the
+gap. The result is in the table: BM25 is far better than full-text, and fusing
+it with dense gains one question of recall and gives back some rank. What remains
+is a local reranker, now with a candidate list worth reordering and a clear
+target — the rank that fusion lost. **F5** resolves
 citations to a character span in the source. **F6** turns the harness into a CI
 gate that fails the build on a quality regression. **F7** puts a frontend on it
 where clicking a citation highlights the span it came from.

@@ -9,7 +9,7 @@ from rageval.config import get_settings
 from rageval.providers import build_budget, build_embedding_provider
 from rageval.providers.base import ProviderError
 from rageval.retrieval.index import index_corpus, latest_corpus_version
-from rageval.retrieval.search import Retriever
+from rageval.retrieval.search import LEXICAL_MODES, MODES, Bm25Config, build_retriever
 from rageval.retrieval.store import RetrievalError, VectorStore
 
 
@@ -27,6 +27,10 @@ def build_parser(top_k: int) -> argparse.ArgumentParser:
     parser.add_argument("--corpus-version", default=None)
     parser.add_argument("--query", default=None, help="run one question instead of indexing")
     parser.add_argument("-k", type=_positive, default=top_k)
+    parser.add_argument("--mode", choices=MODES, default="dense", help="retrieval mode for --query")
+    parser.add_argument(
+        "--fuse-with", choices=LEXICAL_MODES, default="bm25", help="lexical ranker for hybrid"
+    )
     return parser
 
 
@@ -44,10 +48,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             httpx.Client() as client,
             psycopg.connect(settings.database_url, connect_timeout=10) as connection,
         ):
-            provider = build_embedding_provider(settings, client, budget)
             store = VectorStore(connection, settings.embedding_dimension)
 
             if arguments.query is None:
+                provider = build_embedding_provider(settings, client, budget)
                 report = index_corpus(
                     settings.corpus_dir,
                     version,
@@ -67,9 +71,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return 0
 
             store.ensure_schema()
-            for rank, chunk in enumerate(
-                Retriever(store, provider, version, arguments.k).retrieve(arguments.query), start=1
-            ):
+            retriever = build_retriever(
+                arguments.mode,
+                store,
+                None
+                if arguments.mode in LEXICAL_MODES
+                else build_embedding_provider(settings, client, budget),
+                version,
+                arguments.k,
+                Bm25Config(k1=settings.bm25_k1, b=settings.bm25_b),
+                arguments.fuse_with,
+                settings.rrf_k,
+                settings.retrieval_candidates,
+            )
+            for rank, chunk in enumerate(retriever.retrieve(arguments.query), start=1):
                 head = " ".join(chunk.text.split())[:120]
                 print(
                     f"{rank}. {chunk.score:.3f}  {chunk.source_path}"

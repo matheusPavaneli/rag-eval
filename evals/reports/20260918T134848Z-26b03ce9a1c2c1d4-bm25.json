@@ -1,0 +1,411 @@
+{
+  "ran_at": "2026-09-18T13:48:48.493949Z",
+  "rageval_version": "0.1.0",
+  "corpus_version": "26b03ce9a1c2c1d4",
+  "retrieval": {
+    "mode": "bm25",
+    "k1": 1.2,
+    "b": 0.75
+  },
+  "embedding_model": null,
+  "dimension": 768,
+  "chunk_size": 1000,
+  "overlap": 150,
+  "k": 5,
+  "question_count": 30,
+  "context_recall_at_k": 0.6,
+  "mrr_at_k": 0.46499999999999997,
+  "network_calls": 0,
+  "results": [
+    {
+      "id": "q01",
+      "question": "What is the maximum line length PEP 8 asks for?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_paths": [
+        "pep-0008.md",
+        "pep-0393.md",
+        "pep-0393.md",
+        "pep-0257.md",
+        "pep-0572.md"
+      ]
+    },
+    {
+      "id": "q02",
+      "question": "How many spaces per indentation level does PEP 8 require?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_paths": [
+        "pep-0008.md",
+        "pep-0008.md",
+        "pep-0255.md",
+        "pep-0008.md",
+        "pep-0008.md"
+      ]
+    },
+    {
+      "id": "q03",
+      "question": "What does the Zen of Python say about there being one way to do something?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_paths": [
+        "pep-0020.md",
+        "pep-0020.md",
+        "pep-0255.md",
+        "pep-0008.md",
+        "pep-0282.md"
+      ]
+    },
+    {
+      "id": "q04",
+      "question": "Which quotes should a docstring use?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_paths": [
+        "pep-0257.md",
+        "pep-0257.md",
+        "pep-0257.md",
+        "pep-0257.md",
+        "pep-0008.md"
+      ]
+    },
+    {
+      "id": "q05",
+      "question": "What is the regular expression a Python source encoding declaration must match?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_paths": [
+        "pep-0263.md",
+        "pep-0263.md",
+        "pep-0263.md",
+        "pep-0263.md",
+        "pep-0008.md"
+      ]
+    },
+    {
+      "id": "q06",
+      "question": "What is an f-string?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_paths": [
+        "pep-0498.md",
+        "pep-0498.md",
+        "pep-0498.md",
+        "pep-0498.md",
+        "pep-0498.md"
+      ]
+    },
+    {
+      "id": "q07",
+      "question": "What does the walrus operator do?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_paths": [
+        "pep-0634.md",
+        "pep-0572.md",
+        "pep-0695.md",
+        "pep-0249.md",
+        "pep-0428.md"
+      ]
+    },
+    {
+      "id": "q08",
+      "question": "What does PEP 484 say about runtime enforcement of type hints?",
+      "context_recall": 0.0,
+      "reciprocal_rank": 0.0,
+      "retrieved_paths": [
+        "pep-0585.md",
+        "pep-0544.md",
+        "pep-0563.md",
+        "pep-0544.md",
+        "pep-0563.md"
+      ]
+    },
+    {
+      "id": "q09",
+      "question": "What is the canonical form of a version's release segment?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_paths": [
+        "pep-0440.md",
+        "pep-0440.md",
+        "pep-0440.md",
+        "pep-0440.md",
+        "pep-0440.md"
+      ]
+    },
+    {
+      "id": "q10",
+      "question": "Which table in pyproject.toml declares the build system?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_paths": [
+        "pep-0518.md",
+        "pep-0518.md",
+        "pep-0517.md",
+        "pep-0517.md",
+        "pep-0518.md"
+      ]
+    },
+    {
+      "id": "q11",
+      "question": "What is a build backend?",
+      "context_recall": 0.0,
+      "reciprocal_rank": 0.0,
+      "retrieved_paths": [
+        "pep-0517.md",
+        "pep-0517.md",
+        "pep-0517.md",
+        "pep-0517.md",
+        "pep-0517.md"
+      ]
+    },
+    {
+      "id": "q12",
+      "question": "What does paramstyle indicate in the DB-API?",
+      "context_recall": 0.0,
+      "reciprocal_rank": 0.0,
+      "retrieved_paths": [
+        "pep-0249.md",
+        "pep-0249.md",
+        "pep-0249.md",
+        "pep-0249.md",
+        "pep-0249.md"
+      ]
+    },
+    {
+      "id": "q13",
+      "question": "What two methods does the with statement need on a context manager?",
+      "context_recall": 0.0,
+      "reciprocal_rank": 0.0,
+      "retrieved_paths": [
+        "pep-0343.md",
+        "pep-0343.md",
+        "pep-0492.md",
+        "pep-0343.md",
+        "pep-0492.md"
+      ]
+    },
+    {
+      "id": "q14",
+      "question": "What does yield from do?",
+      "context_recall": 0.0,
+      "reciprocal_rank": 0.0,
+      "retrieved_paths": [
+        "pep-0255.md",
+        "pep-0342.md",
+        "pep-0342.md",
+        "pep-0492.md",
+        "pep-0492.md"
+      ]
+    },
+    {
+      "id": "q15",
+      "question": "What is a virtual environment?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_paths": [
+        "pep-0405.md",
+        "pep-0405.md",
+        "pep-0405.md",
+        "pep-0405.md",
+        "pep-0405.md"
+      ]
+    },
+    {
+      "id": "q16",
+      "question": "What is a namespace package?",
+      "context_recall": 0.0,
+      "reciprocal_rank": 0.0,
+      "retrieved_paths": [
+        "pep-0420.md",
+        "pep-0420.md",
+        "pep-0420.md",
+        "pep-0561.md",
+        "pep-0420.md"
+      ]
+    },
+    {
+      "id": "q17",
+      "question": "What is an enumeration?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 0.25,
+      "retrieved_paths": [
+        "pep-0435.md",
+        "pep-0435.md",
+        "pep-0435.md",
+        "pep-0435.md",
+        "pep-0435.md"
+      ]
+    },
+    {
+      "id": "q18",
+      "question": "What does PEP 448 generalise?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_paths": [
+        "pep-0448.md",
+        "pep-0309.md",
+        "pep-0309.md",
+        "pep-0343.md",
+        "pep-0342.md"
+      ]
+    },
+    {
+      "id": "q19",
+      "question": "What operator does PEP 465 add for matrix multiplication?",
+      "context_recall": 0.0,
+      "reciprocal_rank": 0.0,
+      "retrieved_paths": [
+        "pep-0465.md",
+        "pep-0465.md",
+        "pep-0465.md",
+        "pep-0465.md",
+        "pep-0465.md"
+      ]
+    },
+    {
+      "id": "q20",
+      "question": "What makes a function a coroutine under PEP 492?",
+      "context_recall": 0.0,
+      "reciprocal_rank": 0.0,
+      "retrieved_paths": [
+        "pep-0525.md",
+        "pep-0492.md",
+        "pep-0492.md",
+        "pep-0484.md",
+        "pep-0492.md"
+      ]
+    },
+    {
+      "id": "q21",
+      "question": "How is a project name normalised for the simple repository API?",
+      "context_recall": 0.0,
+      "reciprocal_rank": 0.0,
+      "retrieved_paths": [
+        "pep-0503.md",
+        "pep-0503.md",
+        "pep-0503.md",
+        "pep-0503.md",
+        "pep-0440.md"
+      ]
+    },
+    {
+      "id": "q22",
+      "question": "Where may underscores appear in a numeric literal?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_paths": [
+        "pep-0515.md",
+        "pep-0515.md",
+        "pep-0515.md",
+        "pep-0498.md",
+        "pep-0515.md"
+      ]
+    },
+    {
+      "id": "q23",
+      "question": "What is a protocol class?",
+      "context_recall": 0.0,
+      "reciprocal_rank": 0.0,
+      "retrieved_paths": [
+        "pep-0544.md",
+        "pep-0544.md",
+        "pep-0544.md",
+        "pep-0544.md",
+        "pep-0544.md"
+      ]
+    },
+    {
+      "id": "q24",
+      "question": "What does the dataclass decorator generate?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 0.2,
+      "retrieved_paths": [
+        "pep-0557.md",
+        "pep-0557.md",
+        "pep-0557.md",
+        "pep-0557.md",
+        "pep-0557.md"
+      ]
+    },
+    {
+      "id": "q25",
+      "question": "How does a package declare that it ships type information?",
+      "context_recall": 0.0,
+      "reciprocal_rank": 0.0,
+      "retrieved_paths": [
+        "pep-0561.md",
+        "pep-0561.md",
+        "pep-0561.md",
+        "pep-0561.md",
+        "pep-0561.md"
+      ]
+    },
+    {
+      "id": "q26",
+      "question": "What does from __future__ import annotations change?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_paths": [
+        "pep-0563.md",
+        "pep-0563.md",
+        "pep-0484.md",
+        "pep-0604.md",
+        "pep-0563.md"
+      ]
+    },
+    {
+      "id": "q27",
+      "question": "What problem do context variables solve?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_paths": [
+        "pep-0567.md",
+        "pep-0517.md",
+        "pep-0465.md",
+        "pep-0517.md",
+        "pep-0563.md"
+      ]
+    },
+    {
+      "id": "q28",
+      "question": "What does PEP 585 allow in place of typing.List?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 0.5,
+      "retrieved_paths": [
+        "pep-0585.md",
+        "pep-0585.md",
+        "pep-0604.md",
+        "pep-0585.md",
+        "pep-0604.md"
+      ]
+    },
+    {
+      "id": "q29",
+      "question": "How is an optional type written under PEP 604?",
+      "context_recall": 0.0,
+      "reciprocal_rank": 0.0,
+      "retrieved_paths": [
+        "pep-0604.md",
+        "pep-0342.md",
+        "pep-0020.md",
+        "pep-0484.md",
+        "pep-0440.md"
+      ]
+    },
+    {
+      "id": "q30",
+      "question": "What does a match statement compare a subject against?",
+      "context_recall": 1.0,
+      "reciprocal_rank": 1.0,
+      "retrieved_paths": [
+        "pep-0634.md",
+        "pep-0634.md",
+        "pep-0634.md",
+        "pep-0634.md",
+        "pep-0634.md"
+      ]
+    }
+  ]
+}

@@ -2,7 +2,13 @@ from collections.abc import Mapping, Sequence
 
 from rageval.ingest.chunking import Chunk
 from rageval.providers.base import EmbeddingResult, EmbeddingTask
-from rageval.retrieval.store import ScoredChunk
+from rageval.retrieval.search import (
+    Bm25Config,
+    DenseConfig,
+    FullTextConfig,
+    HybridConfig,
+)
+from rageval.retrieval.store import ChunkTerms, ScoredChunk
 
 
 class FakeEmbeddingProvider:
@@ -35,12 +41,24 @@ class FakeEmbeddingProvider:
 
 
 class FakeStore:
-    def __init__(self, dimension: int = 3, results: Sequence[ScoredChunk] = ()) -> None:
+    def __init__(
+        self,
+        dimension: int = 3,
+        results: Sequence[ScoredChunk] = (),
+        lexical_results: Sequence[ScoredChunk] = (),
+        terms: Sequence[ChunkTerms] = (),
+        query_terms: Mapping[str, Sequence[str]] | None = None,
+    ) -> None:
         self._dimension = dimension
         self._results = tuple(results)
+        self._lexical_results = tuple(lexical_results)
         self.schema_calls = 0
         self.upserts: list[list[Chunk]] = []
         self.searches: list[tuple[str, tuple[float, ...], int]] = []
+        self.lexical_searches: list[tuple[str, str, int]] = []
+        self._terms = tuple(terms)
+        self._query_terms = query_terms or {}
+        self.term_reads: list[str] = []
 
     @property
     def dimension(self) -> int:
@@ -68,6 +86,19 @@ class FakeStore:
         self.searches.append((corpus_version, tuple(vector), limit))
         return self._results[:limit]
 
+    def lexical_search(
+        self, corpus_version: str, query: str, limit: int
+    ) -> tuple[ScoredChunk, ...]:
+        self.lexical_searches.append((corpus_version, query, limit))
+        return self._lexical_results[:limit]
+
+    def chunk_terms(self, corpus_version: str) -> tuple[ChunkTerms, ...]:
+        self.term_reads.append(corpus_version)
+        return self._terms
+
+    def query_terms(self, question: str) -> tuple[str, ...]:
+        return tuple(self._query_terms.get(question, question.lower().split()))
+
     def count(self, corpus_version: str) -> int:
         return sum(len(batch) for batch in self.upserts)
 
@@ -78,10 +109,12 @@ class StubRetriever:
         answers: Mapping[str, Sequence[ScoredChunk]],
         top_k: int = 5,
         corpus_version: str = "cafef00d",
+        config: DenseConfig | FullTextConfig | Bm25Config | HybridConfig | None = None,
     ) -> None:
         self._answers = answers
         self._top_k = top_k
         self._corpus_version = corpus_version
+        self._config = config or DenseConfig()
 
     @property
     def top_k(self) -> int:
@@ -92,8 +125,12 @@ class StubRetriever:
         return self._corpus_version
 
     @property
-    def embedding_model(self) -> str:
-        return "fake-embed"
+    def embedding_model(self) -> str | None:
+        return None if isinstance(self._config, FullTextConfig | Bm25Config) else "fake-embed"
+
+    @property
+    def config(self) -> DenseConfig | FullTextConfig | Bm25Config | HybridConfig:
+        return self._config
 
     def retrieve(self, question: str, top_k: int | None = None) -> tuple[ScoredChunk, ...]:
         return tuple(self._answers.get(question, ()))[: top_k or self._top_k]
@@ -117,3 +154,16 @@ def scored(
 def _vector(text: str, dimension: int) -> tuple[float, ...]:
     seed = sum(ord(character) for character in text) or 1
     return tuple(float((seed >> position) % 7 + 1) for position in range(dimension))
+
+
+def terms(chunk_id: str, **counts: int) -> ChunkTerms:
+    return ChunkTerms(
+        chunk_id=chunk_id,
+        document_id=f"doc-{chunk_id}",
+        source_path=f"{chunk_id}.md",
+        ordinal=0,
+        text="x",
+        start_char=0,
+        end_char=10,
+        terms=dict(counts),
+    )
