@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from rageval.providers.base import EmbeddingProvider, PermanentProviderError
 from rageval.retrieval.bm25 import Bm25Index
+from rageval.retrieval.rerank import CrossEncoder
 from rageval.retrieval.store import ChunkStore, RetrievalError, ScoredChunk
 
 type RetrievalMode = Literal["dense", "fulltext", "bm25", "hybrid"]
@@ -46,8 +47,24 @@ class HybridConfig(BaseModel):
     lexical: LexicalConfig
 
 
-type RetrievalConfig = Annotated[
+type FirstStageConfig = Annotated[
     DenseConfig | FullTextConfig | Bm25Config | HybridConfig, Field(discriminator="mode")
+]
+
+
+class RerankConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    mode: Literal["rerank"] = "rerank"
+    model: str
+    revision: str
+    candidates: int
+    first_stage: FirstStageConfig
+
+
+type RetrievalConfig = Annotated[
+    DenseConfig | FullTextConfig | Bm25Config | HybridConfig | RerankConfig,
+    Field(discriminator="mode"),
 ]
 
 
@@ -62,7 +79,7 @@ class QuestionRetriever(Protocol):
     def embedding_model(self) -> str | None: ...
 
     @property
-    def config(self) -> DenseConfig | FullTextConfig | Bm25Config | HybridConfig: ...
+    def config(self) -> DenseConfig | FullTextConfig | Bm25Config | HybridConfig | RerankConfig: ...
 
     def retrieve(self, question: str, top_k: int | None = None) -> tuple[ScoredChunk, ...]: ...
 
@@ -215,6 +232,56 @@ class HybridRetriever:
             self._config.rrf_k,
         )
         return fused[:limit]
+
+
+class RerankRetriever:
+    def __init__(
+        self, first_stage: QuestionRetriever, encoder: CrossEncoder, candidates: int
+    ) -> None:
+        if isinstance(first_stage.config, RerankConfig):
+            raise RetrievalError("a reranker cannot rerank another reranker")
+        self._first_stage = first_stage
+        self._encoder = encoder
+        self._config = RerankConfig(
+            model=encoder.model,
+            revision=encoder.revision,
+            candidates=candidates,
+            first_stage=first_stage.config,
+        )
+
+    @property
+    def top_k(self) -> int:
+        return self._first_stage.top_k
+
+    @property
+    def corpus_version(self) -> str:
+        return self._first_stage.corpus_version
+
+    @property
+    def embedding_model(self) -> str | None:
+        return self._first_stage.embedding_model
+
+    @property
+    def config(self) -> RerankConfig:
+        return self._config
+
+    def retrieve(self, question: str, top_k: int | None = None) -> tuple[ScoredChunk, ...]:
+        limit = self.top_k if top_k is None else top_k
+        candidates = self._first_stage.retrieve(question, self._config.candidates)
+        if not candidates:
+            return ()
+
+        scores = self._encoder.score(question, [chunk.text for chunk in candidates])
+        if len(scores) != len(candidates):
+            raise RetrievalError(
+                f"reranker {self._config.model} returned {len(scores)} scores "
+                f"for {len(candidates)} candidates"
+            )
+
+        order = sorted(range(len(candidates)), key=lambda rank: (-scores[rank], rank))
+        return tuple(
+            candidates[rank].model_copy(update={"score": scores[rank]}) for rank in order[:limit]
+        )
 
 
 def reciprocal_rank_fusion(

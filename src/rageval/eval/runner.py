@@ -13,6 +13,7 @@ from rageval.retrieval.search import (
     FullTextConfig,
     HybridConfig,
     QuestionRetriever,
+    RerankConfig,
     RetrievalConfig,
 )
 
@@ -57,17 +58,32 @@ class EvalReport(BaseModel):
             f"| {self.context_recall_at_k:.3f} | {self.mrr_at_k:.3f} |"
         )
 
-    def _retrieval_label(self) -> str:
+    def _retrieval_label(
+        self,
+        config: DenseConfig
+        | FullTextConfig
+        | Bm25Config
+        | HybridConfig
+        | RerankConfig
+        | None = None,
+    ) -> str:
         dense = f"{self.embedding_model}, {self.dimension}d"
-        match self.retrieval:
+        match self.retrieval if config is None else config:
             case DenseConfig():
                 return f"dense: {dense}"
-            case FullTextConfig() | Bm25Config():
-                return f"{self.retrieval.mode}: {_lexical_label(self.retrieval)}"
+            case FullTextConfig() | Bm25Config() as lexical_ranker:
+                return f"{lexical_ranker.mode}: {_lexical_label(lexical_ranker)}"
             case HybridConfig(rrf_k=rrf_k, candidates=candidates, lexical=lexical):
                 return (
                     f"hybrid (RRF k={rrf_k}, {candidates} candidates each): "
                     f"{dense} + {_lexical_label(lexical)}"
+                )
+            case RerankConfig(
+                model=model, revision=revision, candidates=candidates, first_stage=first_stage
+            ):
+                return (
+                    f"rerank ({model}@{revision[:7]}, top {candidates}) over "
+                    f"{self._retrieval_label(first_stage)}"
                 )
 
 

@@ -14,11 +14,15 @@ from rageval.ingest.documents import DocumentReadError, load_documents
 from rageval.providers import build_budget, build_embedding_provider
 from rageval.providers.base import ProviderError
 from rageval.retrieval.index import latest_corpus_version, load_manifest
+from rageval.retrieval.rerank import OnnxCrossEncoder
 from rageval.retrieval.search import (
     LEXICAL_MODES,
     MODES,
     Bm25Config,
     HybridConfig,
+    RerankConfig,
+    RerankRetriever,
+    RetrievalConfig,
     build_retriever,
 )
 from rageval.retrieval.store import RetrievalError, VectorStore
@@ -41,6 +45,9 @@ def build_parser(golden_set_path: Path, top_k: int) -> argparse.ArgumentParser:
     parser.add_argument("--mode", choices=MODES, default="dense")
     parser.add_argument(
         "--fuse-with", choices=LEXICAL_MODES, default="bm25", help="lexical ranker for hybrid"
+    )
+    parser.add_argument(
+        "--rerank", action="store_true", help="rerank the first stage's candidates locally"
     )
     parser.add_argument(
         "--baseline", type=Path, default=None, help="report to list flipped questions against"
@@ -92,19 +99,29 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 return 1
 
+            retriever = build_retriever(
+                arguments.mode,
+                store,
+                provider,
+                version,
+                arguments.k,
+                Bm25Config(k1=settings.bm25_k1, b=settings.bm25_b),
+                arguments.fuse_with,
+                settings.rrf_k,
+                settings.retrieval_candidates,
+            )
+            if arguments.rerank:
+                retriever = RerankRetriever(
+                    retriever,
+                    OnnxCrossEncoder(
+                        settings.reranker_model, settings.reranker_revision, settings.cache_dir
+                    ),
+                    settings.retrieval_candidates,
+                )
+
             report = run_eval(
                 questions,
-                build_retriever(
-                    arguments.mode,
-                    store,
-                    provider,
-                    version,
-                    arguments.k,
-                    Bm25Config(k1=settings.bm25_k1, b=settings.bm25_b),
-                    arguments.fuse_with,
-                    settings.rrf_k,
-                    settings.retrieval_candidates,
-                ),
+                retriever,
                 manifest.chunk_config,
                 settings.embedding_dimension,
                 lambda: budget.state.calls,
@@ -138,10 +155,16 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _mode_slug(report: EvalReport) -> str:
-    match report.retrieval:
+    return _config_slug(report.retrieval)
+
+
+def _config_slug(config: RetrievalConfig) -> str:
+    match config:
+        case RerankConfig(first_stage=first_stage):
+            return f"rerank-{_config_slug(first_stage)}"
         case HybridConfig(lexical=lexical):
             return f"hybrid-{lexical.mode}"
-        case config:
+        case _:
             return config.mode
 
 

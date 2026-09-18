@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     rrf_k: int = 60
     bm25_k1: float = 1.2
     bm25_b: float = 0.75
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L6-v2"
+    reranker_revision: str = "233902d25c440f23af6f7d6e94d2946bac0bee0a"
     embedding_batch_size: int = 64
     embedding_max_attempts: int = 8
     embedding_backoff_seconds: float = 20.0
