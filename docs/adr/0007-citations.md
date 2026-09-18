@@ -132,7 +132,8 @@ What the numbers say:
   answer with a different model and produce a different number. The frozen
   report is the record of this run. Moving the cache in front of failover is a
   change to the provider layer, and F6 needs it before it can gate CI on a
-  generated answer.
+  generated answer. *Done in [ADR 0010](0010-chat-cache.md): this report now
+  replays with 0 network calls, with or without keys.*
 - **Answer correctness is not measured.** A citation that lands on the gold span
   under a wrong answer counts as a hit. Named here, not hidden; the judge that
   would measure it is F6's.

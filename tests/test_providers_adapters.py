@@ -12,6 +12,7 @@ from rageval.providers import (
     ChatProvider,
     PermanentProviderError,
     TransientProviderError,
+    build_budget,
     build_chat_provider,
     build_embedding_provider,
 )
@@ -267,9 +268,74 @@ def test_an_empty_batch_asks_nothing_of_the_provider() -> None:
     assert provider.embed([]).vectors == ()
 
 
-def test_a_chain_built_without_a_key_names_the_variables_it_needs() -> None:
-    with pytest.raises(PermanentProviderError, match="RAGEVAL_GROQ_API_KEY"):
-        build_chat_provider(Settings(), client(lambda _: httpx.Response(200, json={})))
+def test_without_a_key_the_chat_builder_replays_the_cache_and_never_the_network() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json=groq_chat_body("recorded"))
+
+    settings = Settings()
+    build_chat_provider(
+        settings.model_copy(update={"groq_api_key": SecretStr(KEY)}), client(handler)
+    ).complete("question", "system")
+    requests.clear()
+
+    keyless = build_chat_provider(settings, client(handler))
+
+    replayed = keyless.complete("question", "system")
+    assert (replayed.provider, replayed.text) == ("groq", "recorded")
+    with pytest.raises(CacheMissError, match=r"RAGEVAL_GEMINI_API_KEY.*RAGEVAL_GROQ_API_KEY"):
+        keyless.complete("never answered")
+    assert requests == []
+
+
+def test_a_recorded_answer_is_replayed_even_after_the_first_provider_recovers() -> None:
+    settings = Settings(gemini_api_key=SecretStr(KEY), groq_api_key=SecretStr(KEY))
+    requests: list[httpx.Request] = []
+    gemini_status = 429
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if "googleapis" in request.url.host:
+            return httpx.Response(gemini_status, json=gemini_chat_body("gemini answer"))
+        return httpx.Response(200, json=groq_chat_body("groq answer"))
+
+    recorded = build_chat_provider(settings, client(handler)).complete("question")
+    requests.clear()
+    gemini_status = 200
+
+    replayed = build_chat_provider(settings, client(handler)).complete("question")
+
+    assert (recorded.provider, recorded.text) == ("groq", "groq answer")
+    assert replayed == recorded
+    assert requests == []
+
+
+def test_a_changed_chat_model_is_a_miss_not_a_stale_answer() -> None:
+    settings = Settings(groq_api_key=SecretStr(KEY))
+    build_chat_provider(
+        settings, client(lambda _: httpx.Response(200, json=groq_chat_body()))
+    ).complete("question")
+
+    keyless = build_chat_provider(
+        Settings(groq_chat_model="another/model"),
+        client(lambda _: httpx.Response(200, json=groq_chat_body())),
+    )
+
+    with pytest.raises(CacheMissError):
+        keyless.complete("question")
+
+
+def test_a_replayed_answer_spends_no_budget() -> None:
+    settings = Settings(groq_api_key=SecretStr(KEY))
+    transport = client(lambda _: httpx.Response(200, json=groq_chat_body()))
+    build_chat_provider(settings, transport).complete("question")
+    budget = build_budget(settings)
+
+    build_chat_provider(settings, transport, budget).complete("question")
+
+    assert budget.state.calls == 0
 
 
 def test_without_a_key_the_embedding_builder_serves_the_cache_and_never_the_network(

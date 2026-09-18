@@ -8,6 +8,7 @@ from rageval.providers import (
     CachedEmbeddingProvider,
     CacheEntryError,
     CacheMissError,
+    CacheOnlyChatProvider,
     CacheOnlyEmbeddingProvider,
     ChatResult,
     DiskCache,
@@ -15,8 +16,11 @@ from rageval.providers import (
     EmbeddingTask,
     PermanentProviderError,
     Usage,
+    chat_digest,
     embedding_digest,
 )
+
+CHAIN = ("first/model-a", "second/model-b")
 
 
 class RecordingChat:
@@ -77,7 +81,7 @@ def cache(tmp_path: Path) -> DiskCache:
 
 def test_second_identical_call_is_answered_from_disk(cache: DiskCache) -> None:
     provider = RecordingChat()
-    cached = CachedChatProvider(provider, cache)
+    cached = CachedChatProvider(provider, cache, CHAIN)
 
     first = cached.complete("what is a span?", "be terse")
     second = cached.complete("what is a span?", "be terse")
@@ -88,7 +92,7 @@ def test_second_identical_call_is_answered_from_disk(cache: DiskCache) -> None:
 
 def test_a_changed_prompt_or_system_message_is_a_different_entry(cache: DiskCache) -> None:
     provider = RecordingChat()
-    cached = CachedChatProvider(provider, cache)
+    cached = CachedChatProvider(provider, cache, CHAIN)
 
     cached.complete("one", "be terse")
     cached.complete("two", "be terse")
@@ -97,10 +101,12 @@ def test_a_changed_prompt_or_system_message_is_a_different_entry(cache: DiskCach
     assert len(provider.calls) == 3
 
 
-def test_another_model_never_reads_the_first_models_answer(cache: DiskCache) -> None:
-    first = CachedChatProvider(RecordingChat(model="model-a", text="from a"), cache)
-    second_provider = RecordingChat(model="model-b", text="from b")
-    second = CachedChatProvider(second_provider, cache)
+def test_a_chain_configured_with_another_model_never_reads_the_first_chains_answer(
+    cache: DiskCache,
+) -> None:
+    first = CachedChatProvider(RecordingChat(text="from a"), cache, CHAIN)
+    second_provider = RecordingChat(text="from b")
+    second = CachedChatProvider(second_provider, cache, ("first/model-a", "second/model-c"))
 
     first.complete("same prompt")
     answer = second.complete("same prompt")
@@ -109,12 +115,24 @@ def test_another_model_never_reads_the_first_models_answer(cache: DiskCache) -> 
     assert second_provider.calls == [("same prompt", None)]
 
 
+def test_the_key_does_not_depend_on_which_provider_answers(cache: DiskCache) -> None:
+    CachedChatProvider(RecordingChat(model="model-a", text="recorded"), cache, CHAIN).complete(
+        "question"
+    )
+    today = RecordingChat(model="model-b", text="live")
+
+    answer = CachedChatProvider(today, cache, CHAIN).complete("question")
+
+    assert (answer.provider, answer.model, answer.text) == ("recording", "model-a", "recorded")
+    assert today.calls == []
+
+
 def test_an_entry_survives_into_a_fresh_cache_over_the_same_directory(tmp_path: Path) -> None:
     root = tmp_path / "providers"
     provider = RecordingChat()
 
-    CachedChatProvider(provider, DiskCache(root)).complete("persisted")
-    answer = CachedChatProvider(provider, DiskCache(root)).complete("persisted")
+    CachedChatProvider(provider, DiskCache(root), CHAIN).complete("persisted")
+    answer = CachedChatProvider(provider, DiskCache(root), CHAIN).complete("persisted")
 
     assert answer.text == "answer"
     assert len(provider.calls) == 1
@@ -123,7 +141,7 @@ def test_an_entry_survives_into_a_fresh_cache_over_the_same_directory(tmp_path: 
 def test_writing_an_entry_leaves_no_temporary_file_behind(tmp_path: Path) -> None:
     root = tmp_path / "providers"
 
-    CachedChatProvider(RecordingChat(), DiskCache(root)).complete("written")
+    CachedChatProvider(RecordingChat(), DiskCache(root), CHAIN).complete("written")
 
     assert list(root.rglob("*.tmp")) == []
     assert len(list(root.rglob("*.json"))) == 1
@@ -132,23 +150,23 @@ def test_writing_an_entry_leaves_no_temporary_file_behind(tmp_path: Path) -> Non
 def test_an_unreadable_entry_names_its_path_instead_of_refetching(tmp_path: Path) -> None:
     root = tmp_path / "providers"
     provider = RecordingChat()
-    CachedChatProvider(provider, DiskCache(root)).complete("corrupted")
+    CachedChatProvider(provider, DiskCache(root), CHAIN).complete("corrupted")
     entry = next(iter(root.rglob("*.json")))
     entry.write_text("{ this is not json", encoding="utf-8")
 
     with pytest.raises(CacheEntryError, match=entry.name):
-        CachedChatProvider(provider, DiskCache(root)).complete("corrupted")
+        CachedChatProvider(provider, DiskCache(root), CHAIN).complete("corrupted")
 
 
 def test_an_entry_holding_the_wrong_shape_is_reported_not_returned(tmp_path: Path) -> None:
     root = tmp_path / "providers"
     provider = RecordingChat()
-    CachedChatProvider(provider, DiskCache(root)).complete("wrong shape")
+    CachedChatProvider(provider, DiskCache(root), CHAIN).complete("wrong shape")
     entry = next(iter(root.rglob("*.json")))
     entry.write_text('{"unexpected": true}', encoding="utf-8")
 
     with pytest.raises(CacheEntryError, match="ChatResult"):
-        CachedChatProvider(provider, DiskCache(root)).complete("wrong shape")
+        CachedChatProvider(provider, DiskCache(root), CHAIN).complete("wrong shape")
 
 
 def test_only_the_texts_that_are_new_reach_the_provider(cache: DiskCache) -> None:
@@ -247,3 +265,30 @@ def test_embedding_digest_is_the_key_the_cached_provider_writes(
     assert cache.get("embedding", document) is not None
     assert cache.get("embedding", query) is None
     assert document != query
+
+
+def test_a_cache_only_chat_chain_serves_a_recorded_answer(cache: DiskCache) -> None:
+    recorded = CachedChatProvider(RecordingChat(), cache, CHAIN).complete("question", "system")
+
+    replayed = CachedChatProvider(CacheOnlyChatProvider("model-a"), cache, CHAIN).complete(
+        "question", "system"
+    )
+
+    assert replayed == recorded
+
+
+def test_a_cache_only_chat_miss_names_both_keys_and_writes_nothing(tmp_path: Path) -> None:
+    root = tmp_path / "providers"
+    keyless = CachedChatProvider(CacheOnlyChatProvider("model-a"), DiskCache(root), CHAIN)
+
+    with pytest.raises(CacheMissError, match=r"RAGEVAL_GEMINI_API_KEY.*RAGEVAL_GROQ_API_KEY"):
+        keyless.complete("never answered")
+    assert not root.exists()
+
+
+def test_chat_digest_is_the_key_the_cached_chain_writes(cache: DiskCache) -> None:
+    written = CachedChatProvider(RecordingChat(), cache, CHAIN).complete("question", "system")
+
+    assert cache.get("chat", chat_digest(CHAIN, "question", "system")) == written.model_dump(
+        mode="json"
+    )

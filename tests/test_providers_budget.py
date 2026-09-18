@@ -73,7 +73,9 @@ def test_a_cached_answer_spends_no_budget(tmp_path: Path) -> None:
     provider = RecordingChat()
     budget = Budget(max_calls=1, max_input_chars=1000)
     cached = CachedChatProvider(
-        BudgetedChatProvider(provider, budget), DiskCache(tmp_path / "providers")
+        BudgetedChatProvider(provider, budget),
+        DiskCache(tmp_path / "providers"),
+        ("recording/model-a",),
     )
 
     cached.complete("repeated")

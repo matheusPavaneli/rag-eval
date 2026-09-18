@@ -78,9 +78,17 @@ class DiskCache:
 
 
 class CachedChatProvider:
-    def __init__(self, provider: ChatProvider, cache: DiskCache) -> None:
+    """Caches in front of a whole chat chain, keyed on the configured chain.
+
+    The key names every provider/model the chain is configured with, not the one
+    that answered, so a replay returns the recorded answer whichever provider is
+    up or keyed today. The stored result still says who wrote it.
+    """
+
+    def __init__(self, provider: ChatProvider, cache: DiskCache, chain: Sequence[str]) -> None:
         self._provider = provider
         self._cache = cache
+        self._chain = tuple(chain)
 
     @property
     def name(self) -> str:
@@ -91,14 +99,7 @@ class CachedChatProvider:
         return self._provider.model
 
     def complete(self, prompt: str, system: str | None = None) -> ChatResult:
-        digest = DiskCache.digest(
-            CacheKey(
-                provider=self._provider.name,
-                model=self._provider.model,
-                task="complete",
-                inputs=(prompt, system or ""),
-            )
-        )
+        digest = chat_digest(self._chain, prompt, system)
 
         stored = self._cache.get(CHAT_NAMESPACE, digest)
         if stored is not None:
@@ -196,6 +197,42 @@ class CacheOnlyEmbeddingProvider:
             "RAGEVAL_GEMINI_API_KEY is not set; import the vector snapshot "
             "(python -m rageval.vectors import) or set the key"
         )
+
+
+class CacheOnlyChatProvider:
+    """Stands in for a chat chain that has no key: every prompt it is asked for is a miss.
+
+    Behind CachedChatProvider it turns the cache into the only source of answers,
+    so a missing entry fails instead of reaching the network.
+    """
+
+    def __init__(self, model: str) -> None:
+        self._model = model
+
+    @property
+    def name(self) -> str:
+        return "failover"
+
+    @property
+    def model(self) -> str:
+        return self._model
+
+    def complete(self, prompt: str, system: str | None = None) -> ChatResult:
+        raise CacheMissError(
+            "no cached answer for this prompt and neither RAGEVAL_GEMINI_API_KEY nor "
+            "RAGEVAL_GROQ_API_KEY is set; the chat cache is the only source of answers"
+        )
+
+
+def chat_digest(chain: Sequence[str], prompt: str, system: str | None) -> str:
+    return DiskCache.digest(
+        CacheKey(
+            provider="chain",
+            model=" > ".join(chain),
+            task="complete",
+            inputs=(prompt, system or ""),
+        )
+    )
 
 
 def embedding_digest(

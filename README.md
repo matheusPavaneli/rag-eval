@@ -91,10 +91,11 @@ is not there verbatim — only whitespace is forgiven — does not count.
 - **The model never abstained.** All seven questions whose gold span was not
   retrieved got a confident answer citing something else.
 - **The number is mostly Groq's.** Gemini was rate-limited from the first
-  question and failover answered 29 of 30; the row says so. Because the chat
-  cache sits behind failover, a rerun is not yet guaranteed to reproduce it —
-  the frozen report is the record. Details in
-  [ADR 0007](docs/adr/0007-citations.md).
+  question and failover answered 29 of 30; the row says so. The run replays
+  field for field with 0 network calls, with or without keys: chat is cached in
+  front of failover, so a recorded answer is served whichever provider is up.
+  Details in [ADR 0007](docs/adr/0007-citations.md) and
+  [ADR 0010](docs/adr/0010-chat-cache.md).
 
 ```bash
 uv run python -m rageval.eval --answer
@@ -201,8 +202,10 @@ Every number this project publishes names the corpus version that produced it.
 answered. Gemini goes first and Groq takes over on a *transient* failure — a rate
 limit, a timeout, a 5xx. A rejected key is permanent and stops the run: failing
 over on a bad key would quietly change the model behind a published number.
-Responses are cached on disk keyed by the hash of provider, model and input, and
-a per-run budget refuses the call that would exceed it before it is made.
+Embeddings are cached on disk keyed by the hash of provider, model and input;
+chat answers are cached in front of failover, keyed on the prompt and the
+configured chain, so a replay does not depend on which provider is up. A
+per-run budget refuses the call that would exceed it before it is made.
 
 **Retrieval** stores chunks and their vectors in pgvector and searches by exact
 cosine distance over the whole corpus — no approximate index. At this scale the
