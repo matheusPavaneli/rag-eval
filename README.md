@@ -71,6 +71,36 @@ minute, so the first index takes minutes and backs off when it is throttled.
 Every vector is then cached on disk by content hash, so the run after that makes
 no network call at all.
 
+### Citations
+
+Each answer cites passages by quoting them; code finds every quote in the chunk
+it cites and turns it into a character span in the source document. A quote that
+is not there verbatim — only whitespace is forgiven — does not count.
+
+| Date | Configuration | Citation hit @5 | over retrieved gold spans | Citations resolved |
+| --- | --- | --- | --- | --- |
+| 2026-09-18 | groq/openai/gpt-oss-120b (29), gemini/gemini-3.5-flash (1), prompt `682ec1326b2f`, over dense retrieval (gemini-embedding-001), k=5, corpus `26b03ce9a1c2c1d4` | 0.533 | 0.696 (23) | 0.981 |
+
+- **Quotes resolve.** 51 of 52 were found verbatim; the one that was not joined
+  two sentences with `...`. A resolved citation averages 104 characters, against
+  847 for the chunk it came from.
+- **The hit rate is a lower bound.** A hit means the citation overlaps the one
+  golden span recorded for the question. In at least four of the seven retrieved
+  misses the model cited a different sentence of the same PEP that also answers
+  it (q19, q20, q26, q30).
+- **The model never abstained.** All seven questions whose gold span was not
+  retrieved got a confident answer citing something else.
+- **The number is mostly Groq's.** Gemini was rate-limited from the first
+  question and failover answered 29 of 30; the row says so. Because the chat
+  cache sits behind failover, a rerun is not yet guaranteed to reproduce it —
+  the frozen report is the record. Details in
+  [ADR 0007](docs/adr/0007-citations.md).
+
+```bash
+uv run python -m rageval.eval --answer
+uv run python -m rageval.retrieval --query "What is the maximum line length PEP 8 asks for?" --answer
+```
+
 ## What is measured, and what that is worth
 
 Ground truth is a **character span in a source document**, not the id of a chunk.
@@ -160,6 +190,15 @@ uv run python -m rageval.eval --mode hybrid --fuse-with bm25 \
   --baseline evals/reports/20260916T154348Z-26b03ce9a1c2c1d4.json
 ```
 
+**Answer** (`--answer`) sends the question and the top k chunks, numbered, to the
+chat provider under one fixed system prompt, and asks for JSON: an answer and
+citations, each a passage number and a verbatim quote. The model's word is not
+taken for where the quote is. `resolve` finds it in the passage it cites, after
+collapsing whitespace and nothing more, and adds the chunk's offset to get the
+span in the document; anything else is recorded as unresolved with a reason. The
+answer report keeps every citation, the model that answered each question, and a
+hash of the prompt.
+
 ## The corpus
 
 Fifty PEPs, converted from reStructuredText by `scripts/fetch_peps.py` and
@@ -208,10 +247,16 @@ it with dense gains one question of recall and gives back some rank. The local
 reranker was then measured against that target — recovering the lost rank — with
 its model, revision and depth fixed first. It missed: it found more passages and
 ranked them worse, and that result is published as it came out. Dense stays the
-default. **F5** resolves
-citations to a character span in the source. **F6** turns the harness into a CI
-gate that fails the build on a quality regression. **F7** puts a frontend on it
-where clicking a citation highlights the span it came from.
+default.
+
+**F5** added the first answer, with citations the model quotes and code locates:
+almost every quote resolved, and about half the answers cite the exact golden
+span — a lower bound, since the golden set records one span where the source
+often has several. **F6** turns the harness into a CI gate that fails the build
+on a quality regression; it first needs the chat cache moved in front of
+failover so a generated answer reproduces, and a judge for answer correctness.
+**F7** puts a frontend on it where clicking a citation highlights the span it
+came from.
 
 The ordering is deliberate, and it is the argument the project is making:
 measure the baseline before optimising anything, or you cannot prove the
